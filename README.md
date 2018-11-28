@@ -1,7 +1,7 @@
 # CPM_PF
 Coarse to fine Patch Match + Permeability Filter: [Github](https://github.com/V-Sense/CPM_PF)
 
-This code implements the coarse to fine patch [1] match followed by permeability filter described in [2]. It can be used on video sequences to estimate optical flow as well as sequence of images extracted from light fields to estimate disparity [3].
+This code implements the coarse to fine patch match [1] followed by permeability filter described in [2]. It can be used on video sequences to estimate optical flow as well as sequence of images extracted from light fields to estimate disparity [3].
 
 When using this program, please cite following papers:
 
@@ -90,7 +90,7 @@ To generate depth or compute MSE/RMSE for HCI dataset, disparity groundtruth "gt
 
 ## Dataset
 
-Several sequences from HCI 4D Light Field Dataset [4] and uploaded them with some sequences from MPI Sintel Dataset [5] and were used in [2]. The folw visualising matlab tool in the "ultis" folder is from [6]. Please cite proper papers if using related resources. Results from our implementation are also provided.  Please find the links below:
+Several sequences from HCI 4D Light Field Dataset [4] and uploaded them with some sequences from MPI Sintel Dataset [5] and were used in [2]. The flow visualising matlab tool in the "utils" folder is from [6]. Please cite proper papers if using related resources. Results from our implementation are also provided.  Please find the links below:
 
 | Sintel & HCI Light Field |
 | :-------------: |
