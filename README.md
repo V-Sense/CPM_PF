@@ -1,5 +1,5 @@
 # CPM_PF
-Coarse to fine Patch Match + Permeability Filter: [Link](https://github.com/V-Sense/CPM_PF)
+Coarse to fine Patch Match + Permeability Filter: [Github](https://github.com/V-Sense/CPM_PF)
 
 This code implements the coarse to fine patch [1] match followed by permeability filter described in [2]. It can be used on video sequences to estimate optical flow as well as sequence of images extracted from light fields to estimate disparity [3].
 
@@ -16,8 +16,8 @@ When using this program, please cite following papers:
 ./CPMPF <input_image_folder> <CPM_match_folder> <CPMPF_flow_folder> <refined_CPMPF_flow_folder> [options]
     options:
     	-h, -help                 print this message
-   	  
-   	  CPM parameters:
+    	
+      CPM parameters:
         -m, -max                  outlier handling maxdisplacement threshold
         -t, -th                   froward and backward consistency threshold
         -c, -cth                  matching cost check threshold
