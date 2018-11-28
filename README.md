@@ -1,7 +1,13 @@
 # CPM_PF
-Coarse to fine Patch Match + Permeability Filter: https://github.com/V-Sense/CPM_PF.
+Coarse to fine Patch Match + Permeability Filter: [Link](https://github.com/V-Sense/CPM_PF)
 
-This program can be used on a certain sequence of images, for example, one angular diminsion of a Light Field image.
+This code implements the coarse to fine patch [1] match followed by permeability filter described in [2]. It can be used on video sequences to estimate optical flow as well as sequence of images extracted from light fields to estimate disparity [3].
+
+When using this program, please cite following papers:
+
+1. Hu, Y., Song, R. and Li, Y., 2016. **Efficient coarse-to-fine patchmatch for large displacement optical flow.** In *Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition* (pp. 5704-5712).
+2. Schaffner, M., Scheidegger, F., Cavigelli, L., Kaeslin, H., Benini, L. and Smolic, A., 2018. **Towards Edge-Aware Spatio-Temporal Filtering in Real-Time.** *IEEE Transactions on Image Processing*, *27*(1), pp.265-280.
+3. Chen, Y., Alain, M. and Smolic, A., 2017. **Fast and Accurate Optical Flow based Depth Map Estimation from Light Fields.** In *Irish Machine Vision and Image Processing Conference (IMVIP)*.
 
 ## Usage
 
@@ -34,7 +40,7 @@ This program can be used on a certain sequence of images, for example, one angul
 The code was tested to work in Linux (Ubuntu 16.04). Clone and compile this repository with:
 
 ```
-git clone git@github.com:chenyangjamie/CPM_PF.git
+git clone git@github.com:V-Sense/CPM_PF.git
 cd CPM_PF
 mkdir build
 cd build
@@ -42,7 +48,7 @@ cmake ..
 make -j4
 ```
 
-*Please note*: Folders inside "bin" have to be created manually before running following the usage:
+*Please note*: Folders inside "bin" have to be created manually and copy "utils" folder from the **Datasets** downloaded below before running following the usage:
 
 ```
 CPM_PF
@@ -52,6 +58,7 @@ CPM_PF
  |--(build)
       |--#other folders and files#
       |--bin
+          |--CPMPF
           |--(inputImages)
           |--(outputMatches)
           |--(outputFlows)
@@ -63,13 +70,13 @@ CPM_PF
 
 *outputMatches* contains the intermedia results from CPM;
 
-*outputFlows* contains the dense flow results from CPMPF (similiar to tip17's results);
+*outputFlows* contains the dense flow results from CPMPF (similiar to [2]s results);
 
 *refineOutput* contains the CPMPF results filtered by our IMVIP final step filtering.
 
 *utils* contains tools to read/write and render .flo/.pfm files, and generate disparity/depth for HCI data.
 
-## Visulise results
+## Visualise results
 
 To visualize .flo & .pfm files, add "utils" folder path to matlab first
 
@@ -83,13 +90,21 @@ To generate depth or compute MSE/RMSE for HCI dataset, disparity groundtruth "gt
 
 ## Dataset
 
-Several sequences from HCI light fields and uploaded them with some Sintel sequences used in tip'17 paper. Results from our implementation are also provided.  Please find the links below:
+Several sequences from HCI 4D Light Field Dataset [4] and uploaded them with some sequences from MPI Sintel Dataset [5] and were used in [2]. The folw visualising matlab tool in the "ultis" folder is from [6]. Please cite proper papers if using related resources. Results from our implementation are also provided.  Please find the links below:
 
 | Sintel & HCI Light Field |
 | :-------------: |
 |       [3.9 GB](https://v-sense.scss.tcd.ie/Datasets/Sintel_HCI.zip)            |
 
-## Dependency
+Run the program with Sintel/ambush_3 images for example:
+
+```./CPMPF &lt;input_image_folder&gt; &lt;CPM_match_folder&gt; &lt;CPMPF_flow_folder&gt; &lt;refined_CPMPF_flow_folder&gt; [options]
+./CPMPF inputImages/Sintel/ambush_3/ outputMatches/Sintel/ambush_3/ outputFlows/Sintel/ambush_3/ refinedOutputFlows/Sintel/ambush_3 -sintel
+```
+
+
+
+## Dependencies
 
 - GCC 5.4
 - CMake 3.10.2
@@ -103,9 +118,9 @@ This program is tested on 64 bit Ubuntu 16.04 LTS with Intel(R) Core(TM) i7-6700
 
 ## References
 
-When using this program, please cite following papers:
-
-Schaffner, M., Scheidegger, F., Cavigelli, L., Kaeslin, H., Benini, L. and Smolic, A., 2018. **Towards Edge-Aware Spatio-Temporal Filtering in Real-Time.** *IEEE Transactions on Image Processing*, *27*(1), pp.265-280.
-
-Chen, Y., Alain, M. and Smolic, A., 2017. **Fast and Accurate Optical Flow based Depth Map Estimation from Light Fields.** In *Irish Machine Vision and Image Processing Conference (IMVIP)*.
-
+1. Hu, Y., Song, R. and Li, Y., 2016. **Efficient coarse-to-fine patchmatch for large displacement optical flow.** In *Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition* (pp. 5704-5712).
+2. Schaffner, M., Scheidegger, F., Cavigelli, L., Kaeslin, H., Benini, L. and Smolic, A., 2018. **Towards Edge-Aware Spatio-Temporal Filtering in Real-Time.** *IEEE Transactions on Image Processing*, *27*(1), pp.265-280.
+3. Chen, Y., Alain, M. and Smolic, A., 2017. **Fast and Accurate Optical Flow based Depth Map Estimation from Light Fields.** In *Irish Machine Vision and Image Processing Conference (IMVIP)*.
+4. HCI 4D Light Field Dataset http://hci-lightfield.iwr.uni-heidelberg.de/
+5. MPI Sintel Flow Dataset http://sintel.is.tue.mpg.de/
+6. Middlebury Optical Flow Dataset http://vision.middlebury.edu/flow/
