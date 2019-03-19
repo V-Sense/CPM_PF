@@ -112,10 +112,6 @@ Run the program with Sintel/ambush_3 images for example:
 
 This program is tested on 64 bit Ubuntu 16.04 LTS with Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz.
 
-## Known Issues
-
-* **[Solved]** Variational C functions will meet problem with *uint16* images. Use matlab function **im2uint8()** to convert them to *uint8*. 
-
 ## References
 
 1. Hu, Y., Song, R. and Li, Y., 2016. **Efficient coarse-to-fine patchmatch for large displacement optical flow.** In *Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition* (pp. 5704-5712).

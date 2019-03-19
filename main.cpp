@@ -277,6 +277,7 @@ int main(int argc, char** argv)
             continue;
         }
         cpm_input_images_vec.push_back( tmp_img );
+        tmp_img.imwrite(input_images_name_vec[i].c_str());
     }
 
 
