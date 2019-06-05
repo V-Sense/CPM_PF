@@ -72,8 +72,8 @@ int ReadFlowFile(cv::Mat2f& img, const char* filename)
         printf("ReadFlowFile: problem reading file %s\n", filename);
         return 0;
     }
-    printf("width in file is %d\n",width);
-    printf("height in file is %d\n",height);
+    // printf("width in file is %d\n",width);
+    // printf("height in file is %d\n",height);
     //printf("channels is %d\n",tag);
 
 
@@ -95,10 +95,8 @@ int ReadFlowFile(cv::Mat2f& img, const char* filename)
 
     int nBands = 2;
 
-    //printf("bp1.2\n");
     cv::Mat2f img2(height,width,nBands);
 
-    //printf("bp1.3\n");
     //printf("reading %d x %d x 2 = %d floats\n", width, height, width*height*2);
     
     for (int j=0; j<height; j++) {
@@ -108,7 +106,7 @@ int ReadFlowFile(cv::Mat2f& img, const char* filename)
                 printf("ReadFlowFile(%s): file is too short\n", filename);
                 return 0;
             }
-	    //printf("bp1.4\n");
+	    
             img2.at<cv::Vec2f>(j,i)[0] = tmp[0];
             img2.at<cv::Vec2f>(j,i)[1] = tmp[1];
         }
@@ -149,9 +147,9 @@ int WriteFlowFile(cv::Mat2f& img, const char* filename)
     cv::Size sze = img.size();
     int width = sze.width, height = sze.height, nBands = img.channels();
     //cout<<"width is"<<width<<endl;
-    printf("width is %d\n",width);
-    printf("height is %d\n",height);
-    printf("channels is %d\n",nBands);
+    // printf("width is %d\n",width);
+    // printf("height is %d\n",height);
+    // printf("channels is %d\n",nBands);
 
     if (nBands != 2) {
         printf("WriteFlowFile(%s): image must have 2 bands\n", filename);
@@ -174,7 +172,6 @@ int WriteFlowFile(cv::Mat2f& img, const char* filename)
     
     
         // write the rows
-    
         for (int j=0; j<height; j++) {
             for (int i=0; i<width; i++) {
                 float tmp[nBands];
@@ -191,21 +188,4 @@ int WriteFlowFile(cv::Mat2f& img, const char* filename)
 	return 1;
 }
 
-/*
-int main() {
-    printf("bp0.\n");
-    cv::Mat2f image1(436,1024,2);
-    const char* filename = "test.flo";
-    const char* filename2 = "newtest.flo";
-    
-    printf("bp1.\n");
-    ReadFlowFile(image1, filename);
-    //printf("read is %d\n",read);
-    printf("bp2.\n");
 
-
-    WriteFlowFile(image1, filename2);
-    //printf("write is %d\n",write);
-    printf("bp3.\n");
-}
-*/

@@ -27,14 +27,6 @@ void Match2Flow(FImage& inMat, FImage& ou, FImage& ov, int w, int h)
 		float y = p[1];
 		float u = p[2] - p[0];
 		float v = p[3] - p[1];
-/*
-        if (i < 10) {
-            printf("x is %f\n", x);
-            printf("y is %f\n", y);
-            printf("u is %f\n", u);
-            printf("v is %f\n\n", v);
-        }
-*/
 
 		for (int di = -1; di <= 1; di++){
             for (int dj = -1; dj <= 1; dj++){
@@ -45,16 +37,6 @@ void Match2Flow(FImage& inMat, FImage& ou, FImage& ov, int w, int h)
 			}
 		}
 
-        /*
-        for (int di = 0; di <= 0; di++){
-            for (int dj = 0; dj <= 0; dj++){
-                int tx = ImageProcessing::EnforceRange(x + dj, w);
-                int ty = ImageProcessing::EnforceRange(y + di, h);
-                ou[ty*w + tx] = u;
-                ov[ty*w + tx] = v;
-            }
-        }
-        */
 	}
 }
 
@@ -68,19 +50,14 @@ void WriteMatches(const char *filename, FImage& inMat)
 		float x2 = inMat[4 * i + 2];
 		float y2 = inMat[4 * i + 3];
 		fprintf(fid, "%.0f %.0f %.0f %.0f\n", x1, y1, x2, y2);
-		//fprintf(fid, "%.3f %.3f %.3f %.3f 1 100\n", x1, y1, x2, y2);
 	}
 	fclose(fid);
 }
 
 void FImage2image_t(FImage mu, image_t* wx) {
-    //image_t *tmp = image_new(mu->width(), mu->height());
-    //FImage tmp2(*mu);
     if(!(mu.nelements() > 0))
         cout<<"Can't convert from empty image!"<<endl;
     memcpy(wx->data, mu.pData, sizeof(float) * mu.nelements());
-    //tmp->data = tmp2.pData;
-    //wx = image_cpy(tmp);
 }
 
 void Mat2f2image_t_uv(Mat2f flow, image_t* wx, image_t* wy) {
@@ -90,23 +67,10 @@ void Mat2f2image_t_uv(Mat2f flow, image_t* wx, image_t* wy) {
     Mat1f u_flow_ch1 = flow_ch1_vec[0];
     Mat1f v_flow_ch1 = flow_ch1_vec[1];
 
-
-    //memcpy(wx->data, u_flow_ch1.data, u_flow_ch1.total());
-    //memcpy(wy->data, v_flow_ch1.data, v_flow_ch1.total());
-
-
     for (size_t y = 0; y < u_flow_ch1.rows; ++y) {
         for (size_t x = 0; x < u_flow_ch1.cols; ++x) {
-    //for (size_t y = 0; y < 4; ++y) {
-        //for (size_t x = 0; x < 4; ++x) {
             wx->data[y * wx->stride + x] = u_flow_ch1(y, x);
             wy->data[y * wy->stride + x] = v_flow_ch1(y, x);
-            //cout<<"y is "<< y <<endl;
-            //cout<<"x is "<< x <<endl;
-            //cout<<"stride is "<<wx->stride<<endl;
-            //cout<<"y * wx->stride + x is "<<y * wx->stride + x<<endl;
-            //cout<<"wx->data[y * wx->stride + x] is "<< wx->data[y * wx->stride + x] <<endl;
-            //cout<<"u_flow_ch1(y,x) is "<< u_flow_ch1(y, x) <<endl;
         }
     }
 }
@@ -150,9 +114,6 @@ void run_CPM(FImage img1, FImage img2, int seq_num_of_img1, bool is_forward_matc
 
     totalT.toc("CPM total time: ");
 
-    //FImage u,v;
-    //char tmpName[256];
-
     ostringstream cpm_matches_name_builder;
     if ( is_forward_matching ) {
         cpm_matches_name_builder << setw(4) << setfill('0') << seq_num_of_img1 << '_' << setw(4) << setfill('0') << seq_num_of_img1 + 1;
@@ -174,20 +135,8 @@ void run_CPM(FImage img1, FImage img2, int seq_num_of_img1, bool is_forward_matc
     OpticFlowIO::WriteFlowFile(u.pData, v.pData, w, h, cpm_matches_name_flo.c_str());
     OpticFlowIO::SaveFlowAsImage(cpm_matches_name_png.c_str(), u.pData, v.pData, w, h);
     WriteMatches(cpm_matches_name_txt.c_str(), matches);
-
-
-    //vector<FImage> output_vec;
-    //output_vec.push_back(u);
-    //output_vec.push_back(v);
-
-    //return output_vec;
 }
 
-//void run_PF(Mat3f target_img, Mat2f flow_forward, Mat2f flow_backward)
-//{
-
-
-//}
 
 
 int main(int argc, char** argv)
@@ -201,13 +150,9 @@ int main(int argc, char** argv)
     // load inputs
     char* input_images_folder = argv[1];
     char* CPM_matches_folder = argv[2];
-    //char* refined_CPM_matches_folder = argv[3];
     char* CPMPF_flows_folder = argv[3];
     char* refined_CPMPF_flow_folder = argv[4];
-    //int max_displacement_input_int, check_threshold_input_int, cost_threshold_input_int, iterations_input_int;
-    //float lambda_XY_input_float, delta_XY_input_float, alpha_XY_input_float;
-//  float delta_photo_input_float, delta_grad_input_float, alpha_photo_input_float, alpha_grad_input_float;
-
+    
     // prepare variables
     cpm_pf_params_t params;
     cpm_pf_params_t &cpm_pf_params = params;
@@ -258,7 +203,7 @@ int main(int argc, char** argv)
         }
     }
 
-    // perpare inputs/outputs folders
+    // prepare inputs/outputs folders
     String input_images_folder_string = input_images_folder;
     String CPM_matches_folder_string = CPM_matches_folder;
     String CPMPF_flows_folder_string = CPMPF_flows_folder;
@@ -267,7 +212,7 @@ int main(int argc, char** argv)
     vector<String> input_images_name_vec;
     glob(input_images_folder_string, input_images_name_vec);
 
-    // preapre inputs/outputs for CPM part and var part
+    // prepare inputs/outputs for CPM part and var part
     vector<FImage> cpm_input_images_vec;
     for (size_t i = 0; i < input_images_name_vec.size(); i++) {
         FImage tmp_img;
@@ -293,10 +238,6 @@ int main(int argc, char** argv)
             printf("CPM can only handle images with the same dimension!\n");
             return -1;
         }
-
-        //vector<FImage> img1_uv_vec, img2_uv_vec;
-        //img1_uv_vec = run_CPM(img1, img2, i + 1, true, cpm_pf_params, CPM_matches_folder_string);
-        //img2_uv_vec = run_CPM(img2, img1, i + 2, false, cpm_pf_params, CPM_matches_folder_string);
 
         run_CPM(img1, img2, i + 1, true, cpm_pf_params, CPM_matches_folder_string);
         run_CPM(img2, img1, i + 2, false, cpm_pf_params, CPM_matches_folder_string);
@@ -364,7 +305,6 @@ int main(int argc, char** argv)
         //WriteFilePFM(flow_confidence_filtered_mat, format("00%d_flow_confidence_filtered_XY_mat.pfm", i), 1/255.);
         //end of filtering flow confidence map by copy 1 channel to 2 channel
 
-
         // multiply initial confidence and sparse flow
         Mat2f confidenced_flow = Mat2f::zeros(flow_confidence.rows,flow_confidence.cols);
         for(int y = 0; y < confidenced_flow.rows; y++) {
@@ -422,11 +362,9 @@ int main(int argc, char** argv)
         ReadFlowFile(It1_XY, flowXY1_name.c_str());
 
         if(i == 1) {
-            //printf("i==1");
             It1_XYT_vector = filterT<Vec3f, Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XY, l_prev, l_normal_prev);
         }
         else {
-            //printf("i!=1");
             It1_XYT_vector = filterT<Vec3f, Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XYT, l_prev, l_normal_prev);
         }
 
@@ -442,7 +380,8 @@ int main(int argc, char** argv)
         It0_XYT = It1_XYT;
     }
 
-    //preapre inputs for var part
+
+    //prepare inputs for var part
     vector<color_image_t*> var_input_images_vec;
     vector<Mat2f> var_input_flows_vec;
 
@@ -501,8 +440,6 @@ int main(int argc, char** argv)
         variational_params_t flow_params;
         variational_params_default(&flow_params);
         image_t *wx = image_new(im1->width, im1->height), *wy = image_new(im1->width, im1->height);
-        //FImage2image_t(img1_uv_vec[0], wx);
-        //FImage2image_t(img1_uv_vec[1], wy);
 
         Mat2f2image_t_uv(flo, wx, wy);
 
@@ -521,6 +458,5 @@ int main(int argc, char** argv)
 
     }
 
-    printf("Hello World!");
     return 0;
 }

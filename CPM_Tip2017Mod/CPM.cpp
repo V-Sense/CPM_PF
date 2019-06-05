@@ -88,7 +88,7 @@ int CPM::Matching(FImage& img1, FImage& img2, FImage& outMatches)
         //ImageFeature::imSIFT(_pyd1[i], _im1f[i], 2, 1, true, 8);
         //ImageFeature::imSIFT(_pyd2[i], _im2f[i], 2, 1, true, 8);
 	}
-	t.toc("get feature: ");
+	// t.toc("get feature: ");
 
 	int step = _step;
 	int gridw = w / step;
