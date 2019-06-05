@@ -80,12 +80,12 @@ int ReadFilePFM(Mat &im, string path){
     int littleEndianMachine = littleendian();
     int needSwap = (littleEndianFile != littleEndianMachine);
 
-    cout << setfill('=') << setw(19) << "=" << endl;
-    cout << "Reading image to pfm file: " << path << endl;
-    cout << "Little Endian?: "  << ((needSwap) ? "false" : "true")   << endl;
-    cout << "width: "           << width                             << endl;
-    cout << "height: "          << height                            << endl;
-    cout << "scale: "           << scalef                            << endl;
+    // cout << setfill('=') << setw(19) << "=" << endl;
+    // cout << "Reading image to pfm file: " << path << endl;
+    // cout << "Little Endian?: "  << ((needSwap) ? "false" : "true")   << endl;
+    // cout << "width: "           << width                             << endl;
+    // cout << "height: "          << height                            << endl;
+    // cout << "scale: "           << scalef                            << endl;
 
     // skip SINGLE newline character after reading third arg
     char c = file.get();
@@ -93,18 +93,18 @@ int ReadFilePFM(Mat &im, string path){
         c = file.get();
     if (c != '\n') {
         if (c == ' ' || c == '\t' || c == '\r'){
-            cout << "newline expected";
+            // cout << "newline expected";
             return -1;
         }
         else{
-        	cout << "whitespace expected";
+        	// cout << "whitespace expected";
             return -1;
         }
     }
     
     if(bands == "Pf"){          // handle 1-band image 
-        cout << "Reading grayscale image (1-band)" << endl; 
-        cout << "Reading into CV_32FC1 image" << endl;
+        // cout << "Reading grayscale image (1-band)" << endl; 
+        // cout << "Reading into CV_32FC1 image" << endl;
         im = Mat::zeros(height, width, CV_32FC1);
         for (int i=height-1; i >= 0; --i) {
             for(int j=0; j < width; ++j){
@@ -116,8 +116,8 @@ int ReadFilePFM(Mat &im, string path){
             }
         }
     }else if(bands == "PF"){    // handle 3-band image
-        cout << "Reading color image (3-band)" << endl;
-        cout << "Reading into CV_32FC3 image" << endl; 
+        // cout << "Reading color image (3-band)" << endl;
+        // cout << "Reading into CV_32FC3 image" << endl; 
         im = Mat::zeros(height, width, CV_32FC3);
         for (int i=height-1; i >= 0; --i) {
             for(int j=0; j < width; ++j){
@@ -131,10 +131,10 @@ int ReadFilePFM(Mat &im, string path){
             }
         }
     }else{
-        cout << "unknown bands description";
+        // cout << "unknown bands description";
         return -1;
     }
-    cout << setfill('=') << setw(19) << "=" << endl << endl;
+    // cout << setfill('=') << setw(19) << "=" << endl << endl;
     return 0;
 }
 
@@ -172,7 +172,7 @@ int WriteFilePFM(const Mat &im, string path, float scalef=1/255.0){
             bands = "PF";   // color
             break;
         default:
-            cout << "Unsupported image type, must be CV_32FC1 or CV_32FC3";
+            // cout << "Unsupported image type, must be CV_32FC1 or CV_32FC3";
             return -1;
     }
 
@@ -186,16 +186,16 @@ int WriteFilePFM(const Mat &im, string path, float scalef=1/255.0){
     file << height  << "\n";
     file << scalef  << "\n";
 
-    cout << setfill('=') << setw(19) << "=" << endl;
-    cout << "Writing image to pfm file: " << path << endl;
-    cout << "Little Endian?: "  << ((littleendian()) ? "true" : "false")   	<< endl;
-    cout << "width: "           << width                             		<< endl;
-    cout << "height: "          << height                            		<< endl;
-    cout << "scale: "           << scalef                            		<< endl;
+    // cout << setfill('=') << setw(19) << "=" << endl;
+    // cout << "Writing image to pfm file: " << path << endl;
+    // cout << "Little Endian?: "  << ((littleendian()) ? "true" : "false")   	<< endl;
+    // cout << "width: "           << width                             		<< endl;
+    // cout << "height: "          << height                            		<< endl;
+    // cout << "scale: "           << scalef                            		<< endl;
     
     if(bands == "Pf"){          // handle 1-band image 
-        cout << "Writing grayscale image (1-band)" << endl; 
-        cout << "Writing into CV_32FC1 image" << endl;
+        // cout << "Writing grayscale image (1-band)" << endl; 
+        // cout << "Writing into CV_32FC1 image" << endl;
         for (int i=height-1; i >= 0; --i) {
             for(int j=0; j < width; ++j){
                 fvalue = im.at<float>(i,j);
@@ -204,8 +204,8 @@ int WriteFilePFM(const Mat &im, string path, float scalef=1/255.0){
             }
         }
     }else if(bands == "PF"){    // handle 3-band image
-        cout << "writing color image (3-band)" << endl;
-        cout << "writing into CV_32FC3 image" << endl; 
+        // cout << "writing color image (3-band)" << endl;
+        // cout << "writing into CV_32FC3 image" << endl; 
         for (int i=height-1; i >= 0; --i) {
             for(int j=0; j < width; ++j){
                 vfvalue = im.at<Vec3f>(i,j);
@@ -213,38 +213,12 @@ int WriteFilePFM(const Mat &im, string path, float scalef=1/255.0){
             }
         }
     }else{
-        cout << "unknown bands description";
+        // cout << "unknown bands description";
         return -1;
     }
-    cout << setfill('=') << setw(19) << "=" << endl << endl;
+    // cout << setfill('=') << setw(19) << "=" << endl << endl;
     return 0;
 }
 
-/*
-int main(int argc, char ** argv){
-    Mat I, M;
-
-    ReadFilePFM(I, "disp0GTplaytable.pfm");  
-    WriteFilePFM(I, "disp0RW.pfm");
-    ReadFilePFM(M, "disp0RW.pfm");
-
-    Mat Iresult;
-    //I.convertTo(Iresult, CV_8UC1);
-    Iresult = I / 255.0;
-
-    Mat Mresult;
- 	//M.convertTo(Mresult, CV_8UC1);
- 	Mresult = M / 255.0;
-
-    namedWindow( "pfm_disp_after", CV_WINDOW_AUTOSIZE );
-    imshow( "pfm_disp_after", Mresult );
-
-    namedWindow( "pfm_disp_before", CV_WINDOW_AUTOSIZE );
-    imshow( "pfm_disp_before", Iresult );
-    
-    waitKey(0);
-    return 0;
-}
-*/
 
  
