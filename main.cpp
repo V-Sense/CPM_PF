@@ -394,14 +394,6 @@ int main(int argc, char** argv)
         // flow_confidence_filtered.convertTo(flow_confidence_filtered_mat, CV_32FC1);
         // WriteFilePFM(flow_confidence_filtered_mat, format("00%d_flow_confidence_filtered_XY_mat_1_channels.pfm", i), 1/255.);
 
-        // Mat diffImage;
-        // absdiff(flow_confidence_filtered, flow_confidence_filtered1, diffImage);
-        // imwrite(format("00%d_test_diff.png", i), diffImage);
-
-        // Scalar SAD = sum(abs(flow_confidence_filtered - flow_confidence_filtered1));
-        // cout << SAD << endl;
-
-        
         // multiply initial confidence and sparse flow
         Mat2f confidenced_flow = Mat2f::zeros(flow_confidence.rows,flow_confidence.cols);
         for(int y = 0; y < confidenced_flow.rows; y++) {
@@ -461,17 +453,8 @@ int main(int argc, char** argv)
     {
         Mat3f It0 = input_RGB_images_vec[i - 1];
         Mat3f It1 = input_RGB_images_vec[i];
-        Mat2f It0_XY, It1_XY;
-
-        ostringstream flowXY0_name_builder;
-        flowXY0_name_builder << CPMPF_flows_folder_string << setw(4) << setfill('0') << i << "_Normalized_Flow_XY.flo";
-        string flowXY0_name = flowXY0_name_builder.str();
-        ReadFlowFile(It0_XY, flowXY0_name.c_str());
-
-        ostringstream flowXY1_name_builder;
-        flowXY1_name_builder << CPMPF_flows_folder_string << setw(4) << setfill('0') << i + 1 << "_Normalized_Flow_XY.flo";
-        string flowXY1_name = flowXY1_name_builder.str();
-        ReadFlowFile(It1_XY, flowXY1_name.c_str());
+        Mat2f It0_XY = pf_spatial_flow_vec[i - 1];
+        Mat2f It1_XY = pf_spatial_flow_vec[i];
 
         if(i == 1) {
             It1_XYT_vector = filterT<Vec3f, Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XY,  l_prev, l_normal_prev);
