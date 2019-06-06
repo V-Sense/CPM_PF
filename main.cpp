@@ -144,46 +144,6 @@ void Usage()
         << endl;
 }
 
-void run_CPM(FImage img1, FImage img2, int seq_num_of_img1, bool is_forward_matching, cpm_pf_params_t &cpm_pf_params, string output_matches_folder)
-{
-    int step = 3;
-    int w = img1.width();
-    int h = img1.height();
-
-    // CTimer totalT;
-    FImage matches;
-
-    CPM cpm(cpm_pf_params);
-    cpm.SetStep(step);
-    cpm.Matching(img1, img2, matches);
-
-    // totalT.toc("CPM total time: ");
-
-    ostringstream cpm_matches_name_builder;
-    if ( is_forward_matching ) {
-        cpm_matches_name_builder << setw(4) << setfill('0') << seq_num_of_img1 << '_' << setw(4) << setfill('0') << seq_num_of_img1 + 1;
-    }
-    else {
-        cpm_matches_name_builder << setw(4) << setfill('0') << seq_num_of_img1 << '_' << setw(4) << setfill('0') << seq_num_of_img1 - 1;
-    }
-
-    ostringstream cpm_matches_name_flo_builder, cpm_matches_name_png_builder, cpm_matches_name_txt_builder;
-    cpm_matches_name_flo_builder << output_matches_folder << cpm_matches_name_builder.str() << ".flo";
-    cpm_matches_name_png_builder << output_matches_folder << cpm_matches_name_builder.str() << ".png";
-    cpm_matches_name_txt_builder << output_matches_folder << cpm_matches_name_builder.str() << ".txt";
-    string cpm_matches_name_flo = cpm_matches_name_flo_builder.str();
-    string cpm_matches_name_png = cpm_matches_name_png_builder.str();
-    string cpm_matches_name_txt = cpm_matches_name_txt_builder.str();
-
-    FImage u, v;
-    Match2Flow(matches, u, v, w, h);
-    OpticFlowIO::WriteFlowFile(u.pData, v.pData, w, h, cpm_matches_name_flo.c_str());
-    OpticFlowIO::SaveFlowAsImage(cpm_matches_name_png.c_str(), u.pData, v.pData, w, h);
-    WriteMatches(cpm_matches_name_txt.c_str(), matches);
-}
-
-
-
 int main(int argc, char** argv)
 {
     if (argc < 5){
@@ -449,6 +409,8 @@ int main(int argc, char** argv)
     Mat2f l_normal_prev = Mat2f::zeros(input_RGB_images_vec[0].rows,input_RGB_images_vec[0].cols);
     Mat2f It0_XYT, It1_XYT;
     vector<Mat2f> It1_XYT_vector;
+    vector<Mat2f> pf_temporal_flow_vec;
+
     for (size_t i = 1; i * 2 < cpm_flow_vec.size(); ++i)
     {
         Mat3f It0 = input_RGB_images_vec[i - 1];
@@ -467,6 +429,8 @@ int main(int argc, char** argv)
         l_prev = It1_XYT_vector[0];
         l_normal_prev = It1_XYT_vector[1];
 
+        pf_temporal_flow_vec.push_back(It1_XYT);
+
         ostringstream flowXYT1_name_builder;
         flowXYT1_name_builder << CPMPF_flows_folder_string << setw(4) << setfill('0') << i + 1 << "_XYT.flo";
         string flowXYT1_name = flowXYT1_name_builder.str();
@@ -474,6 +438,7 @@ int main(int argc, char** argv)
         It0_XYT = It1_XYT;
     }
     tPF_time.toc(" done in: ");
+
 
     /* ---------------- RUN VARIATIONAL REFINEMENT  --------------------------- */
     //prepare inputs for var part
@@ -509,7 +474,7 @@ int main(int argc, char** argv)
     //run var part
     CTimer var_time;
     cout << "Running variational refinement... " << flush;
-    for (size_t i = 0; i < var_input_flows_vec.size(); ++i) {
+    for (size_t i = 0; i < pf_temporal_flow_vec.size(); ++i) {
         color_image_t *im1, *im2;
         Mat2f flo;
         ostringstream refined_cpmpf_flows_name_builder;
@@ -532,7 +497,7 @@ int main(int argc, char** argv)
             }
         }
 
-        flo = var_input_flows_vec[i];
+        flo = pf_temporal_flow_vec[i];
 
         variational_params_t flow_params;
         variational_params_default(&flow_params);
