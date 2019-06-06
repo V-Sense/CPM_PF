@@ -102,12 +102,12 @@ void Mat3f2FImage(Mat3f in, FImage &out) {
     }
 }
 
-void Mat3f2color_image_t(Mat3f in, color_image_t &out) {
+void Mat3f2color_image_t(Mat3f in, color_image_t *out) {
     for (size_t y = 0; y < in.rows; ++y) {
         for (size_t x = 0; x < in.cols; ++x) {
-                out.c1[y * out.stride + x] = in(y, x)[0];
-                out.c2[y * out.stride + x] = in(y, x)[1];
-                out.c3[y * out.stride + x] = in(y, x)[2];
+                out->c1[y * out->stride + x] = in(y, x)[0];
+                out->c2[y * out->stride + x] = in(y, x)[1];
+                out->c3[y * out->stride + x] = in(y, x)[2];
         }
     }
 }
@@ -441,58 +441,28 @@ int main(int argc, char** argv)
 
 
     /* ---------------- RUN VARIATIONAL REFINEMENT  --------------------------- */
-    //prepare inputs for var part
-    vector<color_image_t*> var_input_images_vec;
-    vector<Mat2f> var_input_flows_vec;
-
-    vector<String> var_input_flows_name_vec;
-    glob(CPMPF_flows_folder_string, var_input_flows_name_vec);
-
-    for (size_t i = 0; i < input_images_name_vec.size(); i++) {
-        color_image_t *tmp_img;
-        tmp_img = color_image_load(input_images_name_vec[i].c_str());
-        if ( tmp_img->stride == 0 ) {
-            cout << input_images_name_vec[i] << " is invalid!" << endl;
-            continue;
-        }
-        var_input_images_vec.push_back( tmp_img );
-    }
-
-
-    for (size_t i = 0; i < var_input_flows_name_vec.size(); i++) {
-        Mat2f tmp_flo;
-        string tmp_flo_name = var_input_flows_name_vec[i];
-        const char* tmp_flo_name_char = tmp_flo_name.c_str();
-        ReadFlowFile(tmp_flo, tmp_flo_name_char);
-        if( tmp_flo.empty() ) {
-            cout<< var_input_flows_name_vec[i] << " is invalid!" << endl;
-            continue;
-        }
-        var_input_flows_vec.push_back( tmp_flo.clone() );
-    }
-
-    //run var part
     CTimer var_time;
     cout << "Running variational refinement... " << flush;
     for (size_t i = 0; i < pf_temporal_flow_vec.size(); ++i) {
-        color_image_t *im1, *im2;
+        color_image_t *im1 = color_image_new(input_RGB_images_vec[i].cols, input_RGB_images_vec[i].rows);
+        color_image_t *im2 = color_image_new(input_RGB_images_vec[i].cols, input_RGB_images_vec[i].rows);
         Mat2f flo;
         ostringstream refined_cpmpf_flows_name_builder;
 
         if (i == 0) {
-            im1 = color_image_cpy(var_input_images_vec[i]);
-            im2 = color_image_cpy(var_input_images_vec[i + 1]);
+            Mat3f2color_image_t(input_RGB_images_vec[i], im1);
+            Mat3f2color_image_t(input_RGB_images_vec[i + 1], im2);
             refined_cpmpf_flows_name_builder << setw(4) << setfill('0') << i + 1 << "_refined_Normalized_Flow_XY";
         }
         else {
             if (i % 2 != 0) {
-                im1 = color_image_cpy(var_input_images_vec[(i + 1) / 2]);
-                im2 = color_image_cpy(var_input_images_vec[(i + 1) / 2 + 1]);
+                Mat3f2color_image_t(input_RGB_images_vec[(i + 1) / 2], im1);
+                Mat3f2color_image_t(input_RGB_images_vec[(i + 1) / 2 + 1], im2);
                 refined_cpmpf_flows_name_builder << setw(4) << setfill('0') << (i + 1) / 2 + 1 << "_refined_Normalized_Flow_XY";
             }
             else {
-                im1 = color_image_cpy(var_input_images_vec[i / 2]);
-                im2 = color_image_cpy(var_input_images_vec[i / 2 + 1]);
+                Mat3f2color_image_t(input_RGB_images_vec[i / 2], im1);
+                Mat3f2color_image_t(input_RGB_images_vec[i / 2 + 1], im2);
                 refined_cpmpf_flows_name_builder << setw(4) << setfill('0') << i / 2 + 1 << "_refined_XYT";
             }
         }
@@ -532,6 +502,8 @@ int main(int argc, char** argv)
         string refined_cpm_matches_name_pfm = refined_cpmpf_flows_name_pfm_builder.str();
         WriteFilePFM(disp, refined_cpmpf_flows_name_pfm_builder.str(), 1/255.0);
 
+        color_image_delete(im1);
+        color_image_delete(im2);
     }
     var_time.toc(" done in: ");
 
