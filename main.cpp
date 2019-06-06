@@ -387,21 +387,20 @@ int main(int argc, char** argv)
         // Mat flow_confidence_mat;
         // flow_confidence.convertTo(flow_confidence_mat, CV_32FC1);
 
-        // start of filtering flow confidence map by copy 1 channel to 2 channel
-        vector<Mat1f> flow_confidence_2chs_vec;
-        flow_confidence_2chs_vec.push_back(flow_confidence);
-        flow_confidence_2chs_vec.push_back(flow_confidence);
-        Mat2f flow_confidence_2chs;
-        merge(flow_confidence_2chs_vec, flow_confidence_2chs);
+        // Apply spatial permeability filter on confidence
+        Mat1f flow_confidence_filtered = filterXY<Vec3f>(target_img, flow_confidence, cpm_pf_params);
+        
+        // // Mat flow_confidence_filtered_mat;
+        // flow_confidence_filtered.convertTo(flow_confidence_filtered_mat, CV_32FC1);
+        // WriteFilePFM(flow_confidence_filtered_mat, format("00%d_flow_confidence_filtered_XY_mat_1_channels.pfm", i), 1/255.);
 
-        Mat2f flow_confidence_2chs_filtered = filterXY<Vec3f, Vec2f>(target_img, flow_confidence_2chs, cpm_pf_params);
+        // Mat diffImage;
+        // absdiff(flow_confidence_filtered, flow_confidence_filtered1, diffImage);
+        // imwrite(format("00%d_test_diff.png", i), diffImage);
 
-        vector<Mat1f> flow_confidence_2chs_filtered_vec;
-        split(flow_confidence_2chs_filtered, flow_confidence_2chs_filtered_vec);
-        Mat1f flow_confidence_filtered = flow_confidence_2chs_filtered_vec[0];
-        Mat flow_confidence_filtered_mat;
-        flow_confidence_filtered.convertTo(flow_confidence_filtered_mat, CV_32FC1);
-        //WriteFilePFM(flow_confidence_filtered_mat, format("00%d_flow_confidence_filtered_XY_mat.pfm", i), 1/255.);
+        // Scalar SAD = sum(abs(flow_confidence_filtered - flow_confidence_filtered1));
+        // cout << SAD << endl;
+
         
         // multiply initial confidence and sparse flow
         Mat2f confidenced_flow = Mat2f::zeros(flow_confidence.rows,flow_confidence.cols);
@@ -436,6 +435,18 @@ int main(int argc, char** argv)
         temp_str3_builder << CPMPF_flows_folder_string << setw(4) << setfill('0') << i + 1 << "_Normalized_Flow_XY.flo";
         string temp_str3 = temp_str3_builder.str();
         WriteFlowFile(normalized_confidenced_flow_filtered, temp_str3.c_str());
+
+        vector<Mat1f> normalized_confidenced_flow_filtered_vec;
+        split(normalized_confidenced_flow_filtered, normalized_confidenced_flow_filtered_vec);
+        
+        Mat normalized_confidenced_flow_filtered_mat;
+        normalized_confidenced_flow_filtered_vec[0].convertTo(normalized_confidenced_flow_filtered_mat, CV_32FC1);
+        temp_str3_builder.str("");
+        temp_str3_builder.clear();
+        temp_str3_builder << CPMPF_flows_folder_string << setw(4) << setfill('0') << i + 1 << "_Normalized_Flow_XY.pfm";
+        temp_str3 = temp_str3_builder.str();
+        WriteFilePFM(normalized_confidenced_flow_filtered_mat, temp_str3.c_str(), 1/255.);
+
     }
     sPF_time.toc(" done in: ");
 
@@ -523,18 +534,18 @@ int main(int argc, char** argv)
         if (i == 0) {
             im1 = color_image_cpy(var_input_images_vec[i]);
             im2 = color_image_cpy(var_input_images_vec[i + 1]);
-            refined_cpmpf_flows_name_builder << setw(4) << setfill('0') << i + 1 << "_Normalized_Flow_XY";
+            refined_cpmpf_flows_name_builder << setw(4) << setfill('0') << i + 1 << "_refined_Normalized_Flow_XY";
         }
         else {
             if (i % 2 != 0) {
                 im1 = color_image_cpy(var_input_images_vec[(i + 1) / 2]);
                 im2 = color_image_cpy(var_input_images_vec[(i + 1) / 2 + 1]);
-                refined_cpmpf_flows_name_builder << setw(4) << setfill('0') << (i + 1) / 2 + 1 << "_Normalized_Flow_XY";
+                refined_cpmpf_flows_name_builder << setw(4) << setfill('0') << (i + 1) / 2 + 1 << "_refined_Normalized_Flow_XY";
             }
             else {
                 im1 = color_image_cpy(var_input_images_vec[i / 2]);
                 im2 = color_image_cpy(var_input_images_vec[i / 2 + 1]);
-                refined_cpmpf_flows_name_builder << setw(4) << setfill('0') << i / 2 + 1 << "_XYT";
+                refined_cpmpf_flows_name_builder << setw(4) << setfill('0') << i / 2 + 1 << "_refined_XYT";
             }
         }
 

@@ -160,24 +160,108 @@ Mat1f computeSpatialPermeability(Mat_<TSrc> src, float delta_XY, float alpha_XY)
     return result;
 }
 
-template <class TSrc, class TValue>
-Mat_<TValue> filterXY(Mat_<TSrc> src, Mat_<TValue> J, cpm_pf_params_t &cpm_pf_params)
+
+// For single-channel target image J
+template <class TSrc>
+Mat1f filterXY(const Mat_<TSrc> I, const Mat1f J, const cpm_pf_params_t &cpm_pf_params)
 {
     // Input image
-    Mat_<TSrc> I = src;
     int h = I.rows;
     int w = I.cols;
 
-    // Joint image (optional).
-/*
-    Mat_<TRef> A = I;
-    if (!joint_image.empty())
-    {
-        // Input and joint images must have equal width and height.
-        assert(src.size() == joint_image.size());
-        A = joint_image;
+    // initializations (move outside later)
+    float iterations = cpm_pf_params.iterations_input_int;
+    int lambda_XY = cpm_pf_params.lambda_XY_input_float;
+    float delta_XY = cpm_pf_params.delta_XY_input_float;
+    float alpha_XY = cpm_pf_params.alpha_XY_input_float;
+
+    // spatial filtering
+    Mat1f J_XY;
+    J.copyTo(J_XY);
+    Mat1f Mat_Ones = Mat1f::ones(1,1);
+
+    //compute spatial permeability
+    //compute horizontal filtered image
+    Mat1f perm_horizontal;
+    Mat1f perm_vertical;
+    perm_horizontal = computeSpatialPermeability<TSrc>(I, delta_XY, alpha_XY);
+
+    //compute vertical filtered image
+    Mat_<TSrc> I_t = I.t();
+    perm_vertical = computeSpatialPermeability<TSrc>(I_t, delta_XY, alpha_XY);
+    perm_vertical = perm_vertical.t();
+
+    for (int i = 0; i < iterations; ++i) {
+        // spatial filtering
+        // Equation 3.7~3.9 in Michel's thesis (lambda is 0 for flow map)
+
+        // horizontal
+        Mat1f J_XY_upper_h = Mat1f::zeros(h,w); //upper means upper of fractional number
+        Mat1f J_XY_lower_h = Mat1f::zeros(h,w);
+        for (int y = 0; y < h; y++) {
+            Mat1f lp = Mat1f::zeros(1,w);
+            Mat1f lp_normal = Mat1f::zeros(1,w);
+            Mat1f rp = Mat1f::zeros(1,w);
+            Mat1f rp_normal = Mat1f::zeros(1,w);
+
+            // left pass
+            for (int x = 1; x <= w-1; x++) {
+                    lp(0, x) = perm_horizontal(y, x - 1) * (lp(0, x - 1) + J_XY(y, x - 1));
+                    lp_normal(0, x) = perm_horizontal(y, x - 1) * (lp_normal(0, x - 1) + 1.0);
+            }
+        
+            // right pass & combining
+            for (int x = w-2; x >= 0; x--) {
+                rp(0, x) = perm_horizontal(y, x) * (rp(0, x + 1) + J_XY(y, x + 1));
+                rp_normal(0, x) = perm_horizontal(y, x) * (rp_normal(0, x + 1) + 1.0);
+                
+                //combination in right pass loop on-the-fly & deleted source image I
+                if (x == w-2) {
+                    J_XY(y, x+1) = (lp(0, x+1) + (1 - lambda_XY) * J_XY(y, x+1) + rp(0, x+1)) / (lp_normal(0, x+1) + 1.0 + rp_normal(0, x+1));
+                }
+
+                J_XY(y, x) = (lp(0, x) + (1 - lambda_XY) * J_XY(y, x) + rp(0, x)) / (lp_normal(0, x) + 1.0 + rp_normal(0, x));
+            }
+        }
+            
+
+        //vertical
+        Mat1f J_XY_upper_v = Mat1f::zeros(h,w);
+        Mat1f J_XY_lower_v = Mat1f::zeros(h,w);
+        for (int x = 0; x < w; x++) {
+            Mat1f dp = Mat1f::zeros(h,1);
+            Mat1f dp_normal = Mat1f::zeros(h,1);
+            Mat1f up = Mat1f::zeros(h,1);
+            Mat1f up_normal = Mat1f::zeros(h,1);
+
+            // (left pass) down pass
+            for (int y = 1; y <= h-1; y++) {
+                    dp(y, 0) = perm_vertical(y - 1, x) * (dp(y - 1, 0) + J_XY(y - 1, x));
+                    dp_normal(y, 0) = perm_vertical(y - 1, x) * (dp_normal(y - 1, 0) + 1.0);
+                }
+    
+            // (right pass) up pass & combining
+            for (int y = h-2; y >= 0; y--) {
+                up(y, 0) = perm_vertical(y, x) * (up(y + 1, 0) + J_XY(y + 1, x));
+                up_normal(y, 0) = perm_vertical(y, x) * (up_normal(y + 1, 0) + 1.0);
+
+                if(y == h-2) {
+                    J_XY(y+1, x) = (dp(y+1, 0) + (1 - lambda_XY) * J_XY(y+1, x) + up(y+1, 0)) / (dp_normal(y+1, 0) + 1.0 + up_normal(y+1, 0));
+                }
+                J_XY(y, x) = (dp(y, 0) + (1 - lambda_XY) * J_XY(y, x) + up(y, 0)) / (dp_normal(y, 0) + 1.0 + up_normal(y, 0));
+            }
+        }
     }
-*/
+    return J_XY;
+}
+
+// For multi-channel target image J
+template <class TSrc, class TValue>
+Mat_<TValue> filterXY(const Mat_<TSrc> I, const Mat_<TValue> J, const cpm_pf_params_t &cpm_pf_params)
+{
+    // Input image
+    int h = I.rows;
+    int w = I.cols;
 
     // initializations (move outside later)
     float iterations = cpm_pf_params.iterations_input_int;
@@ -187,7 +271,8 @@ Mat_<TValue> filterXY(Mat_<TSrc> src, Mat_<TValue> J, cpm_pf_params_t &cpm_pf_pa
 
     // spatial filtering
     int num_chs = J.channels();
-    Mat_<TValue> J_XY = J;
+    Mat_<TValue> J_XY;
+    J.copyTo(J_XY);
     Mat_<TValue> Mat_Ones = Mat_<TValue>::ones(1,1);
 
     
@@ -197,7 +282,7 @@ Mat_<TValue> filterXY(Mat_<TSrc> src, Mat_<TValue> J, cpm_pf_params_t &cpm_pf_pa
     Mat1f perm_vertical;
     perm_horizontal = computeSpatialPermeability<TSrc>(I, delta_XY, alpha_XY);
 
-    //compute vertial filtered image
+    //compute vertical filtered image
     Mat_<TSrc> I_t = I.t();
     perm_vertical = computeSpatialPermeability<TSrc>(I_t, delta_XY, alpha_XY);
     perm_vertical = perm_vertical.t();
@@ -215,23 +300,15 @@ Mat_<TValue> filterXY(Mat_<TSrc> src, Mat_<TValue> J, cpm_pf_params_t &cpm_pf_pa
             Mat_<TValue> rp = Mat_<TValue>::zeros(1,w);
             Mat_<TValue> rp_normal = Mat_<TValue>::zeros(1,w);
 
-            // left pass
-            for (int x = 1; x <= w-1; x++) {
-
-                for (int c = 0; c < num_chs; c++) {
-                    lp(0, x)[c] = perm_horizontal(y, x - 1) * (lp(0, x - 1)[c] + J_XY(y, x - 1)[c]);
-                    lp_normal(0, x)[c] = perm_horizontal(y, x - 1) * (lp_normal(0, x - 1)[c] + 1.0);
-                   
-                    //float* lp_data = lp.data;
-                    //float* perm_horizontal_data = perm_horizontal.data;
-                    //float* J_XY_data = J_XY.data;
+            for (int c = 0; c < num_chs; c++) {
+                // left pass
+                for (int x = 1; x <= w-1; x++) {
+                        lp(0, x)[c] = perm_horizontal(y, x - 1) * (lp(0, x - 1)[c] + J_XY(y, x - 1)[c]);
+                        lp_normal(0, x)[c] = perm_horizontal(y, x - 1) * (lp_normal(0, x - 1)[c] + 1.0);
                 }
-            }
-
-            // right pass & combining
-            for (int x = w-2; x >= 0; x--) {
-
-                for (int c = 0; c < num_chs; c++) {
+            
+                // right pass & combining
+                for (int x = w-2; x >= 0; x--) {
                     rp(0, x)[c] = perm_horizontal(y, x) * (rp(0, x + 1)[c] + J_XY(y, x + 1)[c]);
                     rp_normal(0, x)[c] = perm_horizontal(y, x) * (rp_normal(0, x + 1)[c] + 1.0);
                     
@@ -254,18 +331,15 @@ Mat_<TValue> filterXY(Mat_<TSrc> src, Mat_<TValue> J, cpm_pf_params_t &cpm_pf_pa
             Mat_<TValue> up = Mat_<TValue>::zeros(h,1);
             Mat_<TValue> up_normal = Mat_<TValue>::zeros(h,1);
 
-            // (left pass) down pass
-            for (int y = 1; y <= h-1; y++) {
-                for (int c = 0; c < num_chs; c++) {
-                    dp(y, 0)[c] = perm_vertical(y - 1, x) * (dp(y - 1, 0)[c] + J_XY(y - 1, x)[c]);
-                    dp_normal(y, 0)[c] = perm_vertical(y - 1, x) * (dp_normal(y - 1, 0)[c] + 1.0);
-                }
-            }
-
-            // (right pass) up pass & combining
-            for (int y = h-2; y >= 0; y--) {
-
-                for (int c = 0; c < num_chs; c++) {
+            for (int c = 0; c < num_chs; c++) {
+                // (left pass) down pass
+                for (int y = 1; y <= h-1; y++) {
+                        dp(y, 0)[c] = perm_vertical(y - 1, x) * (dp(y - 1, 0)[c] + J_XY(y - 1, x)[c]);
+                        dp_normal(y, 0)[c] = perm_vertical(y - 1, x) * (dp_normal(y - 1, 0)[c] + 1.0);
+                    }
+        
+                // (right pass) up pass & combining
+                for (int y = h-2; y >= 0; y--) {
                     up(y, 0)[c] = perm_vertical(y, x) * (up(y + 1, 0)[c] + J_XY(y + 1, x)[c]);
                     up_normal(y, 0)[c] = perm_vertical(y, x) * (up_normal(y + 1, 0)[c] + 1.0);
 
