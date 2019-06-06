@@ -40,6 +40,30 @@ void Match2Flow(FImage& inMat, FImage& ou, FImage& ov, int w, int h)
 	}
 }
 
+void Match2Mat2f(FImage matches, Mat2f &flow)
+{
+	int h = flow.rows;
+    int w = flow.cols;
+	int cnt = matches.height();
+	for (int i = 0; i < cnt; i++){
+		float* p = matches.rowPtr(i);
+		float x = p[0];
+		float y = p[1];
+		float u = p[2] - p[0];
+		float v = p[3] - p[1];
+
+		for (int di = -1; di <= 1; di++){
+            for (int dj = -1; dj <= 1; dj++){
+				int tx = ImageProcessing::EnforceRange(x + dj, w);
+				int ty = ImageProcessing::EnforceRange(y + di, h);
+				flow(ty, tx)[0] = u;
+				flow(ty, tx)[1] = v;
+			}
+		}
+
+	}
+}
+
 void WriteMatches(const char *filename, FImage& inMat)
 {
 	int len = inMat.height();
@@ -61,16 +85,10 @@ void FImage2image_t(FImage mu, image_t* wx) {
 }
 
 void Mat2f2image_t_uv(Mat2f flow, image_t* wx, image_t* wy) {
-    vector<Mat1f> flow_ch1_vec;
-    split(flow, flow_ch1_vec);
-
-    Mat1f u_flow_ch1 = flow_ch1_vec[0];
-    Mat1f v_flow_ch1 = flow_ch1_vec[1];
-
-    for (size_t y = 0; y < u_flow_ch1.rows; ++y) {
-        for (size_t x = 0; x < u_flow_ch1.cols; ++x) {
-            wx->data[y * wx->stride + x] = u_flow_ch1(y, x);
-            wy->data[y * wy->stride + x] = v_flow_ch1(y, x);
+for (size_t y = 0; y < flow.rows; ++y) {
+        for (size_t x = 0; x < flow.cols; ++x) {
+            wx->data[y * wx->stride + x] = flow(y, x)[0];
+            wy->data[y * wy->stride + x] = flow(y, x)[1];
         }
     }
 }
@@ -84,6 +102,15 @@ void Mat3f2FImage(Mat3f in, FImage &out) {
     }
 }
 
+void Mat3f2color_image_t(Mat3f in, color_image_t &out) {
+    for (size_t y = 0; y < in.rows; ++y) {
+        for (size_t x = 0; x < in.cols; ++x) {
+                out.c1[y * out.stride + x] = in(y, x)[0];
+                out.c2[y * out.stride + x] = in(y, x)[1];
+                out.c3[y * out.stride + x] = in(y, x)[2];
+        }
+    }
+}
 
 void image_t2Mat(image_t* in, Mat &out) {
     for (size_t y = 0; y < out.rows; ++y) {
@@ -232,12 +259,12 @@ int main(int argc, char** argv)
     vector<String> input_images_name_vec;
     glob(input_images_folder_string, input_images_name_vec);
 
-    /* ---------------- RUN COARSE-TO-FINE PATCHMATCH --------------------------- */
+    
     // prepare inputs/outputs for CPM part and var part
+    /* ---------------- READ INPUT RBG IMAGES --------------------------- */
     CTimer CPM_input_time;
-    cout << "Reading opencv RGB images for CPM and convert to FImage... " << flush;
+    cout << "Reading input RGB images... " << flush;
     vector<Mat3f> input_RGB_images_vec;
-    vector<FImage> cpm_input_images_vec;
     for (size_t i = 0; i < input_images_name_vec.size(); i++) {
         Mat tmp_img = imread(input_images_name_vec[i]);
         if ( tmp_img.empty() ) {
@@ -247,23 +274,25 @@ int main(int argc, char** argv)
 
         Mat3f tmp_img3f;
         tmp_img.convertTo(tmp_img3f, CV_32F, 1/255.);
-        input_RGB_images_vec.push_back( tmp_img3f.clone() );
-
-        FImage tmp_fimg(tmp_img3f.cols, tmp_img3f.rows, tmp_img3f.channels());
-        Mat3f2FImage(tmp_img3f, tmp_fimg);
-        cpm_input_images_vec.push_back( tmp_fimg );
+        input_RGB_images_vec.push_back(tmp_img3f);
     }
     CPM_input_time.toc(" done in: ");
 
 
+    /* ---------------- RUN COARSE-TO-FINE PATCHMATCH --------------------------- */
     // run CPM part and var part
     CTimer CPM_time;
     cout << "Running CPM... " << flush;
-    for (size_t i = 0; i < cpm_input_images_vec.size() - 1; ++i) {
-        FImage img1, img2;
-        img1.copy(cpm_input_images_vec[i]);
-        img2.copy(cpm_input_images_vec[i+1]);
+    CPM cpm(cpm_pf_params);
+    int step = 3;
+    cpm.SetStep(step);
+    vector<Mat2f> cpm_flow_vec;
+    ostringstream cpm_matches_name_builder, cpm_matches_name_flo_builder, cpm_matches_name_png_builder, cpm_matches_name_txt_builder;
 
+    for (size_t i = 0; i < input_RGB_images_vec.size() - 1; ++i) {
+        FImage img1(input_RGB_images_vec[i].cols, input_RGB_images_vec[i].rows, input_RGB_images_vec[i].channels());
+        FImage img2(input_RGB_images_vec[i+1].cols, input_RGB_images_vec[i+1].rows, input_RGB_images_vec[i+1].channels());
+        
         int w = img1.width();
         int h = img1.height();
         if (img2.width() != w || img2.height() != h) {
@@ -271,47 +300,92 @@ int main(int argc, char** argv)
             return -1;
         }
 
-        run_CPM(img1, img2, i + 1, true, cpm_pf_params, CPM_matches_folder_string);
-        run_CPM(img2, img1, i + 2, false, cpm_pf_params, CPM_matches_folder_string);
+        Mat3f2FImage(input_RGB_images_vec[i], img1);
+        Mat3f2FImage(input_RGB_images_vec[i+1], img2);
+
+        FImage matches;
+        Mat2f flow(cv::Size(w, h));
+        flow = UNKNOWN_FLOW;
+
+        // Forward flow               
+        cpm.Matching(img1, img2, matches);
+
+        Match2Mat2f(matches, flow);
+
+        cpm_flow_vec.push_back(flow);
+
+        // // Write results on disk
+        // cpm_matches_name_builder.str("");
+        // cpm_matches_name_builder.clear();
+        // cpm_matches_name_flo_builder.str("");
+        // cpm_matches_name_flo_builder.clear();
+        // cpm_matches_name_png_builder.str("");
+        // cpm_matches_name_png_builder.clear();
+        // cpm_matches_name_txt_builder.str("");
+        // cpm_matches_name_txt_builder.clear();
+
+        // cpm_matches_name_builder << setw(4) << setfill('0') << i + 1 << '_' << setw(4) << setfill('0') << i + 2;
+        // cpm_matches_name_flo_builder << CPM_matches_folder_string << cpm_matches_name_builder.str() << ".flo";
+        // cpm_matches_name_png_builder << CPM_matches_folder_string << cpm_matches_name_builder.str() << ".png";
+        // cpm_matches_name_txt_builder << CPM_matches_folder_string << cpm_matches_name_builder.str() << ".txt";
+        // string cpm_matches_name_flo = cpm_matches_name_flo_builder.str();
+        // string cpm_matches_name_png = cpm_matches_name_png_builder.str();
+        // string cpm_matches_name_txt = cpm_matches_name_txt_builder.str();
+
+        // FImage u, v;
+        // Match2Flow(matches, u, v, w, h);
+        // OpticFlowIO::WriteFlowFile(u.pData, v.pData, w, h, cpm_matches_name_flo.c_str());
+        // OpticFlowIO::SaveFlowAsImage(cpm_matches_name_png.c_str(), u.pData, v.pData, w, h);
+        // WriteMatches(cpm_matches_name_txt.c_str(), matches);
+
+        // Backward flow               
+        cpm.Matching(img1, img2, matches);
+
+        Match2Mat2f(matches, flow);
+
+        cpm_flow_vec.push_back(flow);
+
+        // // Write results on disk
+        // cpm_matches_name_builder.str("");
+        // cpm_matches_name_builder.clear();
+        // cpm_matches_name_flo_builder.str("");
+        // cpm_matches_name_flo_builder.clear();
+        // cpm_matches_name_png_builder.str("");
+        // cpm_matches_name_png_builder.clear();
+        // cpm_matches_name_txt_builder.str("");
+        // cpm_matches_name_txt_builder.clear();
+
+        // cpm_matches_name_builder << setw(4) << setfill('0') << i + 2 << '_' << setw(4) << setfill('0') << i + 1;
+        // cpm_matches_name_flo_builder << CPM_matches_folder_string << cpm_matches_name_builder.str() << ".flo";
+        // cpm_matches_name_png_builder << CPM_matches_folder_string << cpm_matches_name_builder.str() << ".png";
+        // cpm_matches_name_txt_builder << CPM_matches_folder_string << cpm_matches_name_builder.str() << ".txt";
+        // cpm_matches_name_flo = cpm_matches_name_flo_builder.str();
+        // cpm_matches_name_png = cpm_matches_name_png_builder.str();
+        // cpm_matches_name_txt = cpm_matches_name_txt_builder.str();
+
+        // Match2Flow(matches, u, v, w, h);
+        // OpticFlowIO::WriteFlowFile(u.pData, v.pData, w, h, cpm_matches_name_flo.c_str());
+        // OpticFlowIO::SaveFlowAsImage(cpm_matches_name_png.c_str(), u.pData, v.pData, w, h);
+        // WriteMatches(cpm_matches_name_txt.c_str(), matches);
     }
     CPM_time.toc(" done in: ");
 
 
     /* ---------------- RUN PERMEABILITY FILTER --------------------------- */
-    // prepare inputs/outputs for PF part
-    vector<Mat2f> pf_input_matches_vec; // same as cpm_output_matches
-
-    vector<String> pf_input_matches_name_vec;
-    glob(CPM_matches_folder_string, pf_input_matches_name_vec);
-
-    PF_input_time.tic();
-    cout << "Reading opencv matches images for PF... " << flush;
-    for (size_t i = 0; i < pf_input_matches_name_vec.size(); i++) {
-        Mat2f tmp_flo;
-        string tmp_flo_name = pf_input_matches_name_vec[i];
-        const char* tmp_flo_name_char = tmp_flo_name.c_str();
-        ReadFlowFile(tmp_flo, tmp_flo_name_char);
-        if( tmp_flo.empty() ) {
-            cout<< pf_input_matches_name_vec[i] << " is invalid!" << endl;
-            continue;
-        }
-        pf_input_matches_vec.push_back( tmp_flo.clone() );
-    }
-    PF_input_time.toc(" done in: ");
-
-    
     // spatial filter
     CTimer sPF_time;
     cout << "Running spatial permeability filter... " << flush;
-    for (size_t i = 0; i * 2 < pf_input_matches_vec.size(); ++i) {
+    vector<Mat2f> pf_spatial_flow_vec;
+
+    for (size_t i = 0; i * 2 < cpm_flow_vec.size(); ++i) {
         Mat3f target_img = input_RGB_images_vec[i];
-        Mat2f flow_forward = pf_input_matches_vec[i * 2];
-        Mat2f flow_backward = pf_input_matches_vec[i * 2 + 1];
+        Mat2f flow_forward = cpm_flow_vec[i * 2];
+        Mat2f flow_backward = cpm_flow_vec[i * 2 + 1];
 
         // compute flow confidence map
         Mat1f flow_confidence = getFlowConfidence(flow_forward, flow_backward);
-        Mat flow_confidence_mat;
-        flow_confidence.convertTo(flow_confidence_mat, CV_32FC1);
+        // Mat flow_confidence_mat;
+        // flow_confidence.convertTo(flow_confidence_mat, CV_32FC1);
 
         // start of filtering flow confidence map by copy 1 channel to 2 channel
         vector<Mat1f> flow_confidence_2chs_vec;
@@ -328,8 +402,7 @@ int main(int argc, char** argv)
         Mat flow_confidence_filtered_mat;
         flow_confidence_filtered.convertTo(flow_confidence_filtered_mat, CV_32FC1);
         //WriteFilePFM(flow_confidence_filtered_mat, format("00%d_flow_confidence_filtered_XY_mat.pfm", i), 1/255.);
-        //end of filtering flow confidence map by copy 1 channel to 2 channel
-
+        
         // multiply initial confidence and sparse flow
         Mat2f confidenced_flow = Mat2f::zeros(flow_confidence.rows,flow_confidence.cols);
         for(int y = 0; y < confidenced_flow.rows; y++) {
@@ -356,7 +429,9 @@ int main(int argc, char** argv)
                 }
             }
         }
-        //string temp_str3 = format("00%d_Normalized_Flow_XY.flo", i);
+
+        pf_spatial_flow_vec.push_back(normalized_confidenced_flow_filtered);
+        
         ostringstream temp_str3_builder;
         temp_str3_builder << CPMPF_flows_folder_string << setw(4) << setfill('0') << i + 1 << "_Normalized_Flow_XY.flo";
         string temp_str3 = temp_str3_builder.str();
@@ -371,26 +446,24 @@ int main(int argc, char** argv)
     Mat2f l_normal_prev = Mat2f::zeros(input_RGB_images_vec[0].rows,input_RGB_images_vec[0].cols);
     Mat2f It0_XYT, It1_XYT;
     vector<Mat2f> It1_XYT_vector;
-    for (size_t i = 1; i * 2 < pf_input_matches_vec.size(); ++i)
+    for (size_t i = 1; i * 2 < cpm_flow_vec.size(); ++i)
     {
         Mat3f It0 = input_RGB_images_vec[i - 1];
         Mat3f It1 = input_RGB_images_vec[i];
         Mat2f It0_XY, It1_XY;
 
-        //string flowXY0_name = format("00%d_Normalized_Flow_XY.flo", i - 1);
         ostringstream flowXY0_name_builder;
         flowXY0_name_builder << CPMPF_flows_folder_string << setw(4) << setfill('0') << i << "_Normalized_Flow_XY.flo";
         string flowXY0_name = flowXY0_name_builder.str();
         ReadFlowFile(It0_XY, flowXY0_name.c_str());
 
-        //string flowXY1_name = format("00%d_Normalized_Flow_XY.flo", i);
         ostringstream flowXY1_name_builder;
         flowXY1_name_builder << CPMPF_flows_folder_string << setw(4) << setfill('0') << i + 1 << "_Normalized_Flow_XY.flo";
         string flowXY1_name = flowXY1_name_builder.str();
         ReadFlowFile(It1_XY, flowXY1_name.c_str());
 
         if(i == 1) {
-            It1_XYT_vector = filterT<Vec3f, Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XY, l_prev, l_normal_prev);
+            It1_XYT_vector = filterT<Vec3f, Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XY,  l_prev, l_normal_prev);
         }
         else {
             It1_XYT_vector = filterT<Vec3f, Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XYT, l_prev, l_normal_prev);
@@ -400,7 +473,6 @@ int main(int argc, char** argv)
         l_prev = It1_XYT_vector[0];
         l_normal_prev = It1_XYT_vector[1];
 
-        //string flowXYT1_name = format("00%d_XYT.flo", i);
         ostringstream flowXYT1_name_builder;
         flowXYT1_name_builder << CPMPF_flows_folder_string << setw(4) << setfill('0') << i + 1 << "_XYT.flo";
         string flowXYT1_name = flowXYT1_name_builder.str();

@@ -37,7 +37,7 @@ inline Vec2i getAbsoluteFlow(int x, int y, const Vec2f& flow, int h, int w)
 // First, the disntance D at every position (X,Y) is computed :
 //     D(X,Y) = ||F(X,Y) - B(X + Fx(X,Y),y + Fy(X,Y))||
 // Then, normalized confidence map C is computed :
-//     C' = 1 - D / max(D)
+//     C = 1 - D / max(D)
 inline Mat1f getFlowConfidence(Mat2f forward_flow, Mat2f backward_flow)
 {
     Mat1f distances = Mat1f(forward_flow.rows, forward_flow.cols, -1);
@@ -53,10 +53,10 @@ inline Mat1f getFlowConfidence(Mat2f forward_flow, Mat2f backward_flow)
         for(int x = 0; x < w ; ++x)
         {
             // If there is forward flow for the position F(x,y)
-            Vec2f foward = forward_flow.at<Vec2f>(y, x);
-            if(foward[0] != kFLOW_UNKNOWN[0] && foward[1] != kFLOW_UNKNOWN[1])
+            Vec2f forward = forward_flow.at<Vec2f>(y, x);
+            if(forward[0] != kFLOW_UNKNOWN[0] && forward[1] != kFLOW_UNKNOWN[1])
             {
-                Vec2i next_position = getAbsoluteFlow(x, y, foward, h, w);
+                Vec2i next_position = getAbsoluteFlow(x, y, forward, h, w);
                 if(next_position != kPOSITION_INVALID)
                 {
                     // If there is backward flow for the refered position B(x + F(x,y).x,y + F(x,y).y)
@@ -64,7 +64,7 @@ inline Mat1f getFlowConfidence(Mat2f forward_flow, Mat2f backward_flow)
                     if(backward[0] != kFLOW_UNKNOWN[0] && backward[1] != kFLOW_UNKNOWN[1])
                     {
                         // computes the distance
-                        float distance = (float)norm(foward + backward);
+                        float distance = (float)norm(forward + backward);
 
                         // Updates the max distance, if required
                         if(distance > max_distance)
@@ -107,7 +107,7 @@ inline Mat1f getFlowConfidence(Mat2f forward_flow, Mat2f backward_flow)
                     distances.at<float>(y, x) = (max_distance - distances.at<float>(y, x)) / max_distance;
                     //printf("result distance is %f!\n\n", distances.at<float>(y, x));
                 }
-                if (distances.at<float>(y, x) > 1 || distances.at<float>(y, x) < 0) printf("wrong!");
+                if (distances.at<float>(y, x) > 1 || distances.at<float>(y, x) < 0) printf("Error in confidence flow computation!\n");
             }
         }
         //printf("max distance is %d\n", max_distance);
