@@ -114,6 +114,7 @@ int main(int argc, char** argv)
     CTimer CPM_input_time;
     cout << "Reading input RGB images... " << flush;
     vector<Mat3f> input_RGB_images_vec;
+    
     for (size_t i = 0; i < input_images_name_vec.size(); i++) {
         Mat tmp_img = imread(input_images_name_vec[i]);
         if ( tmp_img.empty() ) {
