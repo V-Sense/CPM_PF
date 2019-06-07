@@ -169,10 +169,10 @@ Mat1f filterXY(const Mat_<TSrc> I, const Mat1f J, const cpm_pf_params_t &cpm_pf_
     int w = I.cols;
 
     // initializations (move outside later)
-    float iterations = cpm_pf_params.iterations_input_int;
-    int lambda_XY = cpm_pf_params.lambda_XY_input_float;
-    float delta_XY = cpm_pf_params.delta_XY_input_float;
-    float alpha_XY = cpm_pf_params.alpha_XY_input_float;
+    float iterations = cpm_pf_params.PF_iterations_input_int;
+    int lambda_XY = cpm_pf_params.PF_lambda_XY_input_float;
+    float delta_XY = cpm_pf_params.PF_delta_XY_input_float;
+    float alpha_XY = cpm_pf_params.PF_alpha_XY_input_float;
 
     // spatial filtering
     Mat1f J_XY;
@@ -263,10 +263,10 @@ Mat_<TValue> filterXY(const Mat_<TSrc> I, const Mat_<TValue> J, const cpm_pf_par
     int w = I.cols;
 
     // initializations (move outside later)
-    float iterations = cpm_pf_params.iterations_input_int;
-    int lambda_XY = cpm_pf_params.lambda_XY_input_float;
-    float delta_XY = cpm_pf_params.delta_XY_input_float;
-    float alpha_XY = cpm_pf_params.alpha_XY_input_float;
+    float iterations = cpm_pf_params.PF_iterations_input_int;
+    int lambda_XY = cpm_pf_params.PF_lambda_XY_input_float;
+    float delta_XY = cpm_pf_params.PF_delta_XY_input_float;
+    float alpha_XY = cpm_pf_params.PF_alpha_XY_input_float;
 
     // spatial filtering
     int num_chs = J.channels();

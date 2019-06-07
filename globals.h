@@ -3,22 +3,26 @@
 
 typedef struct cpm_pf_params_t
 {
-    int max_displacement_input_int;
-    int check_threshold_input_int;
-    int cost_threshold_input_int;
-    int iterations_input_int;
-    float lambda_XY_input_float;
-    float delta_XY_input_float;
-    float alpha_XY_input_float;
+    int CPM_max_displacement_input_int;
+    int CPM_check_threshold_input_int;
+    int CPM_cost_threshold_input_int;
+    int CPM_stereo_flag;
+    int CPM_step;
+    int PF_iterations_input_int;
+    float PF_lambda_XY_input_float;
+    float PF_delta_XY_input_float;
+    float PF_alpha_XY_input_float;
 
     cpm_pf_params_t()
-    : max_displacement_input_int(400)
-    , check_threshold_input_int(1)
-    , cost_threshold_input_int(1880)
-    , iterations_input_int(5)
-    , lambda_XY_input_float(0)
-    , delta_XY_input_float(0.02)
-    , alpha_XY_input_float(2)
+    : CPM_max_displacement_input_int(400)
+    , CPM_check_threshold_input_int(1)
+    , CPM_cost_threshold_input_int(1880)
+    , CPM_stereo_flag(1)
+    , CPM_step(3)
+    , PF_iterations_input_int(5)
+    , PF_lambda_XY_input_float(0)
+    , PF_delta_XY_input_float(0.02)
+    , PF_alpha_XY_input_float(2)
     {
     }
 };

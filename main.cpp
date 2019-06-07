@@ -15,7 +15,7 @@ void Usage()
         << "C++ implementation." << endl
         << endl
         << "Usage:" << endl
-        << "  ./CPMPF <input_image_folder> <CPM_match_folder> <CPMPF_flow_folder> <refined_CPMPF_flow_folder> [options]" << endl
+        << "  ./CPMPF <input_image_folder> <img_pre> <img_suf> <img_ext> <start_idx> <nb_imgs> <ang_dir> <CPM_match_folder> <CPMPF_flow_folder> <refined_CPMPF_flow_folder> [options]" << endl
         << "options:" << endl
         << "    -h help                                     print this message" << endl
         << "  CPM parameters:" << endl
@@ -46,52 +46,66 @@ int main(int argc, char** argv)
     CTimer total_time;
 
     // load inputs
-    char* input_images_folder = argv[1];
-    char* CPM_matches_folder = argv[2];
-    char* CPMPF_flows_folder = argv[3];
-    char* refined_CPMPF_flow_folder = argv[4];
+    int current_arg = 1;
+    char* input_images_folder = argv[current_arg++];
+    char* img_pre = argv[current_arg++];
+    char* img_suf = argv[current_arg++];
+    char* img_ext = argv[current_arg++];
+    int start_idx = atoi(argv[current_arg++]);
+    int nb_imgs = atoi(argv[current_arg++]);
+    char* ang_dir = argv[current_arg++];
+    char* CPM_matches_folder = argv[current_arg++];
+    char* CPMPF_flows_folder = argv[current_arg++];
+    char* refined_CPMPF_flow_folder = argv[current_arg++];
     
     // prepare variables
     cpm_pf_params_t cpm_pf_params;
 
     // load options
     #define isarg(key)  !strcmp(a,key)
-    int current_arg = 5;
     while(current_arg < argc){
         const char* a = argv[current_arg++];
         if( isarg("-h") || isarg("-help") )
             Usage();
         else if( isarg("-m") || isarg("-max") )
-            cpm_pf_params.max_displacement_input_int = atoi(argv[current_arg++]);
+            cpm_pf_params.CPM_max_displacement_input_int = atoi(argv[current_arg++]);
         else if( isarg("-t") || isarg("-th") )
-            cpm_pf_params.check_threshold_input_int = atoi(argv[current_arg++]);
+            cpm_pf_params.CPM_check_threshold_input_int = atoi(argv[current_arg++]);
         else if( isarg("-c") || isarg("-cth") )
-            cpm_pf_params.cost_threshold_input_int = atoi(argv[current_arg++]);
+            cpm_pf_params.CPM_cost_threshold_input_int = atoi(argv[current_arg++]);
+        else if( isarg("-s") || isarg("-stereo") )
+            cpm_pf_params.CPM_stereo_flag = atoi(argv[current_arg++]);
+        else if( isarg("-r") || isarg("-step") )
+            cpm_pf_params.CPM_step = atoi(argv[current_arg++]);
         else if( isarg("-i") || isarg("-iter") )
-            cpm_pf_params.iterations_input_int = atof(argv[current_arg++]);
+            cpm_pf_params.PF_iterations_input_int = atof(argv[current_arg++]);
         else if( isarg("-l") || isarg("-lambda") )
-            cpm_pf_params.lambda_XY_input_float = atof(argv[current_arg++]);
+            cpm_pf_params.PF_lambda_XY_input_float = atof(argv[current_arg++]);
         else if( isarg("-d") || isarg("-delta") )
-            cpm_pf_params.delta_XY_input_float = atof(argv[current_arg++]);
+            cpm_pf_params.PF_delta_XY_input_float = atof(argv[current_arg++]);
         else if( isarg("-a") || isarg("-alpha") )
-            cpm_pf_params.alpha_XY_input_float = atof(argv[current_arg++]);
+            cpm_pf_params.PF_alpha_XY_input_float = atof(argv[current_arg++]);
         else if( isarg("-sintel") ) {
-            cpm_pf_params.max_displacement_input_int = 400;
-            cpm_pf_params.check_threshold_input_int = 1;
-            cpm_pf_params.cost_threshold_input_int = 1880;
-            cpm_pf_params.iterations_input_int = 5;
-            cpm_pf_params.lambda_XY_input_float = 0;
-            cpm_pf_params.delta_XY_input_float = 0.017;
-            cpm_pf_params.alpha_XY_input_float = 2;
+            cpm_pf_params.CPM_max_displacement_input_int = 400;
+            cpm_pf_params.CPM_check_threshold_input_int = 1;
+            cpm_pf_params.CPM_cost_threshold_input_int = 1880;
+            cpm_pf_params.CPM_stereo_flag = 0;
+            cpm_pf_params.CPM_step = 3;
+            cpm_pf_params.PF_iterations_input_int = 5;
+            cpm_pf_params.PF_lambda_XY_input_float = 0;
+            cpm_pf_params.PF_delta_XY_input_float = 0.017;
+            cpm_pf_params.PF_alpha_XY_input_float = 2;
         }
         else if( isarg("-hcilf") ) {
-            cpm_pf_params.max_displacement_input_int = 4;
-            cpm_pf_params.check_threshold_input_int = 1;
-            cpm_pf_params.cost_threshold_input_int = 1880;
-            cpm_pf_params.iterations_input_int = 5;
-            cpm_pf_params.lambda_XY_input_float = 0;
-            cpm_pf_params.delta_XY_input_float = 0.017;
-            cpm_pf_params.alpha_XY_input_float = 2;
+            cpm_pf_params.CPM_max_displacement_input_int = 4;
+            cpm_pf_params.CPM_check_threshold_input_int = 1;
+            cpm_pf_params.CPM_cost_threshold_input_int = 1880;
+            cpm_pf_params.CPM_stereo_flag = 1;
+            cpm_pf_params.CPM_step = 3;
+            cpm_pf_params.PF_iterations_input_int = 5;
+            cpm_pf_params.PF_lambda_XY_input_float = 0;
+            cpm_pf_params.PF_delta_XY_input_float = 0.017;
+            cpm_pf_params.PF_alpha_XY_input_float = 2;
         }
         else {
             fprintf(stderr, "unknown argument %s", a);
@@ -100,21 +114,19 @@ int main(int argc, char** argv)
         }
     }
 
-    // prepare inputs/outputs folders
+    // prepare inputs/outputs
     string input_images_folder_string = input_images_folder;
+    string img_pre_string = img_pre;
+    string img_suf_string = img_suf;
+    string img_ext_string = img_ext;
+    string ang_dir_string = ang_dir; // Angular direction along which flow is estimated
     string CPM_matches_folder_string = CPM_matches_folder;
     string CPMPF_flows_folder_string = CPMPF_flows_folder;
     string refined_CPMPF_flow_folder_string = refined_CPMPF_flow_folder;
 
-    // input RGB images names
-    string img_pre("SAI_08_"), img_suf(".png"), img_ext(".png");
-    size_t start_idx = 7, nb_imgs = 5;
-
     vector<string> input_images_name_vec(nb_imgs);
 
-    string ang_dir("hor"); // Angular direction along which flow is estimated
-    
-    
+     
     /* ---------------- READ INPUT RBG IMAGES --------------------------- */
     CTimer CPM_input_time;
     cout << "Reading input RGB images... " << flush;
@@ -125,7 +137,7 @@ int main(int argc, char** argv)
         std::stringstream ss_idx;
         ss_idx << std::setw(2) << std::setfill('0') << start_idx + i;
 		std::string s_idx = ss_idx.str();
-        String img_name = img_pre + s_idx + img_suf;
+        String img_name = img_pre_string + s_idx + img_suf_string;
         input_images_name_vec[i] = img_name;
         
         Mat tmp_img = imread(input_images_folder_string + "/" + img_name);
@@ -157,11 +169,7 @@ int main(int argc, char** argv)
     /* ---------------- RUN COARSE-TO-FINE PATCHMATCH --------------------------- */
     CTimer CPM_time;
     cout << "Running CPM... " << flush;
-    int cpm_step = 3;
     CPM cpm(cpm_pf_params);
-    cpm.SetStep(cpm_step);
-    int com_stereoflag = 1;
-    cpm.SetStereoFlag(com_stereoflag);
     vector<Mat2f> cpm_flow_fwd(nb_imgs-1), cpm_flow_bwd(nb_imgs-1);
     
     #pragma omp parallel for 
@@ -199,8 +207,8 @@ int main(int argc, char** argv)
         // Remove image file extension
         string img_name1 = input_images_name_vec[i];
         string img_name2 = input_images_name_vec[i+1];
-        str_replace(img_name1, img_ext, "");
-        str_replace(img_name2, img_ext, "");
+        str_replace(img_name1, img_ext_string, "");
+        str_replace(img_name2, img_ext_string, "");
 
         // Forward matching
         string flow_fwd_name = "CPM__" + img_name1 + "__TO__" + img_name2;
@@ -276,8 +284,8 @@ int main(int argc, char** argv)
         // Remove image file extension
         string img_name1 = input_images_name_vec[i];
         string img_name2 = input_images_name_vec[i+1];
-        str_replace(img_name1, img_ext, "");
-        str_replace(img_name2, img_ext, "");
+        str_replace(img_name1, img_ext_string, "");
+        str_replace(img_name2, img_ext_string, "");
 
         // Forward matching only
         string flow_fwd_name = "PF_spatial__" + img_name1 + "__TO__" + img_name2;
@@ -334,8 +342,8 @@ int main(int argc, char** argv)
         // Remove image file extension
         string img_name1 = input_images_name_vec[i];
         string img_name2 = input_images_name_vec[i+1];
-        str_replace(img_name1, img_ext, "");
-        str_replace(img_name2, img_ext, "");
+        str_replace(img_name1, img_ext_string, "");
+        str_replace(img_name2, img_ext_string, "");
 
         // Forward matching only
         string flow_fwd_name = "PF_temporal__" + img_name1 + "__TO__" + img_name2;
@@ -382,6 +390,7 @@ int main(int argc, char** argv)
     color_image_delete(im2);
     var_time.toc(" done in: ");
 
+
     // Write variational refinement results on disk
     CTimer vr_write_time;
     cout << "Writing variational refinement results... " << flush;
@@ -390,8 +399,8 @@ int main(int argc, char** argv)
         // Remove image file extension
         string img_name1 = input_images_name_vec[i];
         string img_name2 = input_images_name_vec[i+1];
-        str_replace(img_name1, img_ext, "");
-        str_replace(img_name2, img_ext, "");
+        str_replace(img_name1, img_ext_string, "");
+        str_replace(img_name2, img_ext_string, "");
 
         // Forward matching only
         string flow_fwd_name = "VR__" + img_name1 + "__TO__" + img_name2;
@@ -404,11 +413,11 @@ int main(int argc, char** argv)
         // Convert to disparity
         vector<Mat1f> vr_flow_split;
         split(vr_flow_vec[i], vr_flow_split);
-        if(ang_dir == "hor") {
+        if(ang_dir_string == "hor") {
             string disp_file = refined_CPMPF_flow_folder_string +  "DISP__" + img_name1 + "__TO__" + img_name2 + ".pfm";
             WriteFilePFM(-vr_flow_split[0], disp_file.c_str(), 1/255.0);
         }
-        else if(ang_dir == "ver") {
+        else if(ang_dir_string == "ver") {
             string disp_file = refined_CPMPF_flow_folder_string +  "DISP__" + img_name1 + "__TO__" + img_name2 + ".pfm";
             WriteFilePFM(-vr_flow_split[1], disp_file.c_str(), 1/255.0);
         }

@@ -11,8 +11,10 @@
 CPM::CPM(cpm_pf_params_t &cpm_pf_params)
 {
 	// default parameters
-	_step = 3;
-	_isStereo = false;
+	// _step = 3;
+	// _isStereo = false;
+	_step = cpm_pf_params.CPM_step;
+	_isStereo = cpm_pf_params.CPM_stereo_flag;
 
     _maxIters = 8; //CPM official origin
     //_maxIters = 6; //CPM modify in tip2017 #tipModification
@@ -22,16 +24,16 @@ CPM::CPM(cpm_pf_params_t &cpm_pf_params)
     _maxDisplacement = 400; //CPM official origin
     //_maxDisplacement = 88; //CPM modify in tip2017 #tipModification
     //_maxDisplacement = 5; //LF modification
-    _maxDisplacement = cpm_pf_params.max_displacement_input_int;
+    _maxDisplacement = cpm_pf_params.CPM_max_displacement_input_int;
 
     //_checkThreshold = 3; //CPM official origin
     //_checkThreshold = 1; //CPM modify in tip2017 #tipModification
-    _checkThreshold = cpm_pf_params.check_threshold_input_int;
+    _checkThreshold = cpm_pf_params.CPM_check_threshold_input_int;
 
     _borderWidth = 5;
 
     //_costCheckThreshold = 1000; //CPM modify in tip2017 #tipModification
-    _costCheckThreshold = cpm_pf_params.cost_threshold_input_int;
+    _costCheckThreshold = cpm_pf_params.CPM_cost_threshold_input_int;
 
 
 	_im1f = NULL;
