@@ -156,6 +156,7 @@ int main(int argc, char** argv)
     int step = 3;
     CPM cpm(cpm_pf_params);
     cpm.SetStep(step);
+    cpm.SetStereoFlag(1);
     vector<Mat2f> cpm_flow_fwd(nb_imgs-1), cpm_flow_bwd(nb_imgs-1);
     
     // #pragma omp parallel for 
