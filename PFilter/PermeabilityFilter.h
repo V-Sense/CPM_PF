@@ -355,7 +355,7 @@ Mat_<TValue> filterXY(const Mat_<TSrc> I, const Mat_<TValue> J, const cpm_pf_par
 
 
 template <class TSrc>
-Mat1f computeTemporalPermeability(Mat_<TSrc> I, Mat_<TSrc> I_prev, Mat2f flow_XY, Mat2f flow_prev_XYT, float delta_photo, float delta_grad, float alpha_photo, float alpha_grad)
+Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, const Mat2f flow_XY, const Mat2f flow_prev_XYT, const float delta_photo, const float delta_grad, const float alpha_photo, const float alpha_grad)
 {
     int h = I.rows;
     int w = I.cols;
@@ -378,6 +378,17 @@ Mat1f computeTemporalPermeability(Mat_<TSrc> I, Mat_<TSrc> I_prev, Mat2f flow_XY
     std::vector<Mat1f> prev_maps(num_channels_flow);
     split(prev_map, prev_maps);
     remap(I_prev, I_prev_warped, prev_maps[0], prev_maps[1], cv::INTER_CUBIC);
+
+    // Mat I_org, I_warp;
+    // I.convertTo(I_org, CV_8UC3, 255);
+    // I_prev_warped.convertTo(I_warp, CV_8UC3, 255);
+    
+    // int rnum = rand();
+    // std::ostringstream oss;
+    // oss << rnum;
+
+    // imwrite("original_image" + oss.str() + ".png", I_org);
+    // imwrite("warp_image" + oss.str() + ".png", I_warp);
 
     // Equation 11
     Mat_<TSrc> diff_I = I - I_prev_warped;
@@ -420,14 +431,12 @@ Mat1f computeTemporalPermeability(Mat_<TSrc> I, Mat_<TSrc> I_prev, Mat2f flow_XY
 }
 
 template <class TSrc, class TValue>
-vector<Mat_<TValue> > filterT(Mat_<TSrc> src, Mat_<TSrc> src_prev, Mat_<TValue> J_XY, Mat_<TValue> J_prev_XY, Mat2f flow_XY, Mat2f flow_prev_XYT, Mat_<TValue> l_t_prev, Mat_<TValue> l_t_normal_prev)
+vector<Mat_<TValue> > filterT(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, const Mat_<TValue> J_XY, const Mat_<TValue> J_prev_XY, const Mat2f flow_XY, const Mat2f flow_prev_XYT, const Mat_<TValue> l_t_prev, const Mat_<TValue> l_t_normal_prev)
 {
     //store result variable
     vector<Mat_<TValue> > result;
 
     // Input image
-    Mat_<TSrc> I = src;
-    Mat_<TSrc> I_prev = src_prev;
     int h = I.rows;
     int w = I.cols;
     int num_channels = I.channels();
@@ -443,7 +452,8 @@ vector<Mat_<TValue> > filterT(Mat_<TSrc> src, Mat_<TSrc> src_prev, Mat_<TValue> 
     }
 */
 
-    Mat_<TValue> J_XYT = J_XY;
+    Mat_<TValue> J_XYT;
+    J_XY.copyTo(J_XYT);
 
     // Initialization parameters
     float lambda_T = 0;

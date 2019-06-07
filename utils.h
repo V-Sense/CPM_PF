@@ -26,6 +26,8 @@ void FImage2image_t(FImage mu, image_t* flow_x);
 
 void Mat2f2image_t_uv(Mat2f flow, image_t* flow_x, image_t* flow_y);
 
+void image_t_uv2Mat2f(Mat2f &flow, image_t* flow_x, image_t* flow_y);
+
 void Mat3f2FImage(Mat3f in, FImage &out);
 
 void Mat3f2color_image_t(Mat3f in, color_image_t *out);

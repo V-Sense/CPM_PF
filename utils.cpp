@@ -91,10 +91,19 @@ for (size_t y = 0; y < flow.rows; ++y) {
     }
 }
 
+void image_t_uv2Mat2f(Mat2f &flow, image_t* flow_x, image_t* flow_y) {
+for (size_t y = 0; y < flow.rows; ++y) {
+        for (size_t x = 0; x < flow.cols; ++x) {
+            flow(y, x)[0] = flow_x->data[y * flow_x->stride + x];
+            flow(y, x)[1] = flow_y->data[y * flow_y->stride + x];
+        }
+    }
+}
+
 void Mat3f2FImage(Mat3f in, FImage &out) {
     for (size_t y = 0; y < in.rows; ++y) {
         for (size_t x = 0; x < in.cols; ++x) {
-                float pixBGR[3] = {in(y, x)[0], in(y, x)[1], in(y, x)[2]}; // Opencv stores pixels in BGR order
+                float pixBGR[3] = {in(y, x)[0], in(y, x)[1], in(y, x)[2]};
                 out.setPixel(y, x, pixBGR);
         }
     }
@@ -103,9 +112,9 @@ void Mat3f2FImage(Mat3f in, FImage &out) {
 void Mat3f2color_image_t(Mat3f in, color_image_t *out) {
     for (size_t y = 0; y < in.rows; ++y) {
         for (size_t x = 0; x < in.cols; ++x) {
-                out->c1[y * out->stride + x] = in(y, x)[0];
-                out->c2[y * out->stride + x] = in(y, x)[1];
-                out->c3[y * out->stride + x] = in(y, x)[2];
+                out->c1[y * out->stride + x] = in(y, x)[2] * 255.; // Opencv stores pixels in BGR order
+                out->c2[y * out->stride + x] = in(y, x)[1] * 255.;
+                out->c3[y * out->stride + x] = in(y, x)[0] * 255.;
         }
     }
 }

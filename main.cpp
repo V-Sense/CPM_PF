@@ -5,6 +5,7 @@
 #include "utils.h"
 extern "C" {
 #include "Variational_refinement/variational.h"
+#include "Variational_refinement/io.h"
 }
 
 
@@ -19,8 +20,10 @@ void Usage()
         << "    -h help                                     print this message" << endl
         << "  CPM parameters:" << endl
         << "    -m, -max                                    outlier handling maxdisplacement threshold" << endl
-        << "    -t, -th                                     froward and backward consistency threshold" << endl
+        << "    -t, -th                                     forward and backward consistency threshold" << endl
         << "    -c, -cth                                    matching cost check threshold" <<endl
+        << "    -s, -stereo                                 stereo flag" <<endl
+        << "    -r, -step                                   step giving the final result resolution" <<endl
         << "  PF parameters:" << endl
         << "    -i, -iter                                   number of iterantions for spatial permeability filter" << endl
         << "    -l, -lambda                                 lambda para for spatial permeability filter" << endl
@@ -49,8 +52,7 @@ int main(int argc, char** argv)
     char* refined_CPMPF_flow_folder = argv[4];
     
     // prepare variables
-    cpm_pf_params_t params;
-    cpm_pf_params_t &cpm_pf_params = params;
+    cpm_pf_params_t cpm_pf_params;
 
     // load options
     #define isarg(key)  !strcmp(a,key)
@@ -109,6 +111,8 @@ int main(int argc, char** argv)
     size_t start_idx = 7, nb_imgs = 5;
 
     vector<string> input_images_name_vec(nb_imgs);
+
+    string ang_dir("hor"); // Angular direction along which flow is estimated
     
     
     /* ---------------- READ INPUT RBG IMAGES --------------------------- */
@@ -153,7 +157,7 @@ int main(int argc, char** argv)
     /* ---------------- RUN COARSE-TO-FINE PATCHMATCH --------------------------- */
     CTimer CPM_time;
     cout << "Running CPM... " << flush;
-    int cpm_step = 6;
+    int cpm_step = 3;
     CPM cpm(cpm_pf_params);
     cpm.SetStep(cpm_step);
     int com_stereoflag = 1;
@@ -349,71 +353,67 @@ int main(int argc, char** argv)
     cout << "Running variational refinement... " << flush;
     color_image_t *im1 = color_image_new(width, height);
     color_image_t *im2 = color_image_new(width, height);
-    for (size_t i = 0; i < pf_temporal_flow_vec.size(); ++i) {
-        
-        ostringstream refined_cpmpf_flows_name_builder;
-        if (i == 0) {
+    vector<Mat2f> vr_flow_vec(nb_imgs - 1);
+
+    for (size_t i = 0; i < nb_imgs - 1; ++i) {
+        if(i == 0){
             Mat3f2color_image_t(input_RGB_images_vec[i], im1);
             Mat3f2color_image_t(input_RGB_images_vec[i + 1], im2);
-            refined_cpmpf_flows_name_builder << setw(4) << setfill('0') << i + 1 << "_refined_Normalized_Flow_XY";
         }
         else {
-            if (i % 2 != 0) {
-                Mat3f2color_image_t(input_RGB_images_vec[(i + 1) / 2], im1);
-                Mat3f2color_image_t(input_RGB_images_vec[(i + 1) / 2 + 1], im2);
-                refined_cpmpf_flows_name_builder << setw(4) << setfill('0') << (i + 1) / 2 + 1 << "_refined_Normalized_Flow_XY";
-            }
-            else {
-                Mat3f2color_image_t(input_RGB_images_vec[i / 2], im1);
-                Mat3f2color_image_t(input_RGB_images_vec[i / 2 + 1], im2);
-                refined_cpmpf_flows_name_builder << setw(4) << setfill('0') << i / 2 + 1 << "_refined_XYT";
-            }
+            Mat3f2color_image_t(input_RGB_images_vec[i-1], im1);
+            Mat3f2color_image_t(input_RGB_images_vec[i], im2);
         }
-
         Mat2f pf_flow = pf_temporal_flow_vec[i];
 
         variational_params_t flow_params;
         variational_params_default(&flow_params);
         image_t *flow_x = image_new(width, height), *flow_y = image_new(width, height);
-
         Mat2f2image_t_uv(pf_flow, flow_x, flow_y);
 
         variational(flow_x, flow_y, im1, im2, &flow_params);
 
+        Mat2f vr_flow(height, width);
+        image_t_uv2Mat2f(vr_flow, flow_x, flow_y);
 
-        ostringstream refined_cpmpf_flows_name_flo_builder, refined_cpmpf_flows_name_png_builder;
-        refined_cpmpf_flows_name_flo_builder << refined_CPMPF_flow_folder_string << refined_cpmpf_flows_name_builder.str() << ".flo";
-        refined_cpmpf_flows_name_png_builder << refined_CPMPF_flow_folder_string << refined_cpmpf_flows_name_builder.str() << ".png";
-
-        string refined_cpm_matches_name_flo = refined_cpmpf_flows_name_flo_builder.str();
-        string refined_cpm_matches_name_png = refined_cpmpf_flows_name_png_builder.str();
-
-        vector<Mat1f> flow_vec;
-        flow_vec.push_back(Mat1f::zeros(height, width));
-        flow_vec.push_back(Mat1f::zeros(height, width));
-        image_t2Mat(flow_x, flow_vec[0]);
-        image_t2Mat(flow_y, flow_vec[1]);
-
-        Mat2f flow_mat;
-        merge(flow_vec, flow_mat);
-        WriteFlowFile(flow_mat, refined_cpm_matches_name_flo.c_str());
-
-        // Convert final result to pfm
-        // CTimer convert2disp_time;
-        Mat disp(height, width, CV_32F);
-        image_t2Mat(flow_x, disp);
-        disp = -disp;
-        // convert2disp_time.toc("Conversion of image_t to Mat: ");
-
-        ostringstream refined_cpmpf_flows_name_pfm_builder;
-        refined_cpmpf_flows_name_pfm_builder << refined_CPMPF_flow_folder_string << refined_cpmpf_flows_name_builder.str() << ".pfm";
-        string refined_cpm_matches_name_pfm = refined_cpmpf_flows_name_pfm_builder.str();
-        WriteFilePFM(disp, refined_cpmpf_flows_name_pfm_builder.str(), 1/255.0);
+        vr_flow_vec[i] = vr_flow;
     }
     color_image_delete(im1);
     color_image_delete(im2);
     var_time.toc(" done in: ");
 
+    // Write variational refinement results on disk
+    CTimer vr_write_time;
+    cout << "Writing variational refinement results... " << flush;
+    #pragma omp parallel for 
+    for (size_t i = 0; i < nb_imgs - 1; ++i) {
+        // Remove image file extension
+        string img_name1 = input_images_name_vec[i];
+        string img_name2 = input_images_name_vec[i+1];
+        str_replace(img_name1, img_ext, "");
+        str_replace(img_name2, img_ext, "");
+
+        // Forward matching only
+        string flow_fwd_name = "VR__" + img_name1 + "__TO__" + img_name2;
+        string flow_fwd_file = refined_CPMPF_flow_folder_string + "/" + flow_fwd_name + ".flo";
+        WriteFlowFile(vr_flow_vec[i], flow_fwd_file.c_str());
+        
+        flow_fwd_file = refined_CPMPF_flow_folder_string + "/" + flow_fwd_name + ".png";
+        WriteFlowAsImage(vr_flow_vec[i], flow_fwd_file.c_str(), -1);
+
+        // Convert to disparity
+        vector<Mat1f> vr_flow_split;
+        split(vr_flow_vec[i], vr_flow_split);
+        if(ang_dir == "hor") {
+            string disp_file = refined_CPMPF_flow_folder_string +  "DISP__" + img_name1 + "__TO__" + img_name2 + ".pfm";
+            WriteFilePFM(-vr_flow_split[0], disp_file.c_str(), 1/255.0);
+        }
+        else if(ang_dir == "ver") {
+            string disp_file = refined_CPMPF_flow_folder_string +  "DISP__" + img_name1 + "__TO__" + img_name2 + ".pfm";
+            WriteFilePFM(-vr_flow_split[1], disp_file.c_str(), 1/255.0);
+        }
+    }
+    vr_write_time.toc(" done in: ");
     
     total_time.toc("\nTotal elapsed time: ");
 
