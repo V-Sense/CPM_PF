@@ -14,27 +14,13 @@ list(APPEND headers ${headers_h} ${headers_hpp})
 
 include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}
-#	${CMAKE_CURRENT_BINARY_DIR}
-#	${FeatureFlow_SOURCE_DIR}
-#       ${Commons_SOURCE_DIR}
         ${OpenCV_INCLUDE_DIRS}
 )
-
-#link_directories(
-#)
-
-#find_package( OpenCV REQUIRED )
-
-#add_executable(${MODULE_NAME}
-#        ${sources}
-#	${headers}
-#)
 
 add_library(${MODULE_NAME} STATIC
         ${sources}
         ${headers}
 )
-
 
 TARGET_LINK_LIBRARIES(${MODULE_NAME}
     ${OpenCV_LIBS}

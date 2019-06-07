@@ -1,4 +1,3 @@
-
 #include "CPM_Tip2017Mod/CPM.h"
 #include "CPM_Tip2017Mod/OpticFlowIO.h"
 #include "PFilter/PermeabilityFilter.h"
@@ -109,11 +108,11 @@ int main(int argc, char** argv)
     glob(input_images_folder_string, input_images_name_vec);
 
     
-    // prepare inputs/outputs for CPM part and var part
     /* ---------------- READ INPUT RBG IMAGES --------------------------- */
     CTimer CPM_input_time;
     cout << "Reading input RGB images... " << flush;
     vector<Mat3f> input_RGB_images_vec;
+    int width = -1 , height = -1, nch = -1;
 
     for (size_t i = 0; i < input_images_name_vec.size(); i++) {
         Mat tmp_img = imread(input_images_name_vec[i]);
@@ -122,6 +121,19 @@ int main(int argc, char** argv)
             continue;
         }
 
+        if( i == 0 ) {
+            width  = tmp_img.cols;
+            height = tmp_img.rows;
+            nch = tmp_img.channels();
+        }
+        else
+        {
+            if(width != tmp_img.cols || height != tmp_img.rows || nch != tmp_img.channels()) {
+                cout << "All input images should have the same size; size of image " << input_images_name_vec[i] << " is different from previous image" << endl;
+                return -1;
+            }
+        }
+        
         Mat3f tmp_img3f;
         tmp_img.convertTo(tmp_img3f, CV_32F, 1/255.);
         input_RGB_images_vec.push_back(tmp_img3f);
@@ -130,32 +142,24 @@ int main(int argc, char** argv)
 
 
     /* ---------------- RUN COARSE-TO-FINE PATCHMATCH --------------------------- */
-    // run CPM part and var part
     CTimer CPM_time;
     cout << "Running CPM... " << flush;
     CPM cpm(cpm_pf_params);
     int step = 3;
     cpm.SetStep(step);
-    vector<Mat2f> cpm_flow_vec;
+    vector<Mat2f> cpm_flow_fwd, cpm_flow_bwd;
     ostringstream cpm_matches_name_builder, cpm_matches_name_flo_builder, cpm_matches_name_png_builder, cpm_matches_name_txt_builder;
 
     #pragma omp parallel for 
     for (size_t i = 0; i < input_RGB_images_vec.size() - 1; ++i) {
-        FImage img1(input_RGB_images_vec[i].cols, input_RGB_images_vec[i].rows, input_RGB_images_vec[i].channels());
-        FImage img2(input_RGB_images_vec[i+1].cols, input_RGB_images_vec[i+1].rows, input_RGB_images_vec[i+1].channels());
+        FImage img1(width, height, nch);
+        FImage img2(width, height, nch);
         
-        int w = img1.width();
-        int h = img1.height();
-        if (img2.width() != w || img2.height() != h) {
-            printf("CPM can only handle images with the same dimension!\n");
-            return -1;
-        }
-
         Mat3f2FImage(input_RGB_images_vec[i], img1);
         Mat3f2FImage(input_RGB_images_vec[i+1], img2);
 
         FImage matches;
-        Mat2f flow(cv::Size(w, h));
+        Mat2f flow(height, width);
         flow = UNKNOWN_FLOW;
 
         // Forward flow               
@@ -163,7 +167,7 @@ int main(int argc, char** argv)
 
         Match2Mat2f(matches, flow);
 
-        cpm_flow_vec.push_back(flow);
+        cpm_flow_fwd.push_back(flow);
 
         // // Write results on disk
         // cpm_matches_name_builder.str("");
@@ -194,7 +198,7 @@ int main(int argc, char** argv)
 
         Match2Mat2f(matches, flow);
 
-        cpm_flow_vec.push_back(flow);
+        cpm_flow_bwd.push_back(flow);
 
         // // Write results on disk
         // cpm_matches_name_builder.str("");
@@ -228,10 +232,10 @@ int main(int argc, char** argv)
     cout << "Running spatial permeability filter... " << flush;
     vector<Mat2f> pf_spatial_flow_vec;
 
-    for (size_t i = 0; i * 2 < cpm_flow_vec.size(); ++i) {
+    for (size_t i = 0; i < cpm_flow_fwd.size(); ++i) {
         Mat3f target_img = input_RGB_images_vec[i];
-        Mat2f flow_forward = cpm_flow_vec[i * 2];
-        Mat2f flow_backward = cpm_flow_vec[i * 2 + 1];
+        Mat2f flow_forward  = cpm_flow_fwd[i];
+        Mat2f flow_backward = cpm_flow_bwd[i];
 
         // compute flow confidence map
         Mat1f flow_confidence = getFlowConfidence(flow_forward, flow_backward);
@@ -296,13 +300,13 @@ int main(int argc, char** argv)
     // temporal filter
     CTimer tPF_time;
     cout << "Running temporal permeability filter... " << flush;
-    Mat2f l_prev = Mat2f::zeros(input_RGB_images_vec[0].rows,input_RGB_images_vec[0].cols);
-    Mat2f l_normal_prev = Mat2f::zeros(input_RGB_images_vec[0].rows,input_RGB_images_vec[0].cols);
+    Mat2f l_prev = Mat2f::zeros(height, width);
+    Mat2f l_normal_prev = Mat2f::zeros(height, width);
     Mat2f It0_XYT, It1_XYT;
     vector<Mat2f> It1_XYT_vector;
     vector<Mat2f> pf_temporal_flow_vec;
 
-    for (size_t i = 1; i * 2 < cpm_flow_vec.size(); ++i)
+    for (size_t i = 1; i < pf_spatial_flow_vec.size(); ++i)
     {
         Mat3f It0 = input_RGB_images_vec[i - 1];
         Mat3f It1 = input_RGB_images_vec[i];
@@ -334,12 +338,11 @@ int main(int argc, char** argv)
     /* ---------------- RUN VARIATIONAL REFINEMENT  --------------------------- */
     CTimer var_time;
     cout << "Running variational refinement... " << flush;
+    color_image_t *im1 = color_image_new(width, height);
+    color_image_t *im2 = color_image_new(width, height);
     for (size_t i = 0; i < pf_temporal_flow_vec.size(); ++i) {
-        color_image_t *im1 = color_image_new(input_RGB_images_vec[i].cols, input_RGB_images_vec[i].rows);
-        color_image_t *im2 = color_image_new(input_RGB_images_vec[i].cols, input_RGB_images_vec[i].rows);
-        Mat2f flo;
+        
         ostringstream refined_cpmpf_flows_name_builder;
-
         if (i == 0) {
             Mat3f2color_image_t(input_RGB_images_vec[i], im1);
             Mat3f2color_image_t(input_RGB_images_vec[i + 1], im2);
@@ -362,7 +365,7 @@ int main(int argc, char** argv)
 
         variational_params_t flow_params;
         variational_params_default(&flow_params);
-        image_t *flow_x = image_new(im1->width, im1->height), *flow_y = image_new(im1->width, im1->height);
+        image_t *flow_x = image_new(width, height), *flow_y = image_new(width, height);
 
         Mat2f2image_t_uv(pf_flow, flow_x, flow_y);
 
@@ -377,8 +380,8 @@ int main(int argc, char** argv)
         string refined_cpm_matches_name_png = refined_cpmpf_flows_name_png_builder.str();
 
         vector<Mat1f> flow_vec;
-        flow_vec.push_back(Mat1f::zeros(flow_x->width, flow_x->height));
-        flow_vec.push_back(Mat1f::zeros(flow_y->width, flow_y->height));
+        flow_vec.push_back(Mat1f::zeros(height, width));
+        flow_vec.push_back(Mat1f::zeros(height, width));
         image_t2Mat(flow_x, flow_vec[0]);
         image_t2Mat(flow_y, flow_vec[1]);
 
@@ -388,7 +391,7 @@ int main(int argc, char** argv)
 
         // Convert final result to pfm
         // CTimer convert2disp_time;
-        Mat disp(flow_x->width, flow_x->height, CV_32F);
+        Mat disp(height, width, CV_32F);
         image_t2Mat(flow_x, disp);
         disp = -disp;
         // convert2disp_time.toc("Conversion of image_t to Mat: ");
@@ -397,10 +400,9 @@ int main(int argc, char** argv)
         refined_cpmpf_flows_name_pfm_builder << refined_CPMPF_flow_folder_string << refined_cpmpf_flows_name_builder.str() << ".pfm";
         string refined_cpm_matches_name_pfm = refined_cpmpf_flows_name_pfm_builder.str();
         WriteFilePFM(disp, refined_cpmpf_flows_name_pfm_builder.str(), 1/255.0);
-
-        color_image_delete(im1);
-        color_image_delete(im2);
     }
+    color_image_delete(im1);
+    color_image_delete(im2);
     var_time.toc(" done in: ");
 
     

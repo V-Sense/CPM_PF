@@ -17,7 +17,6 @@ const Vec2i kPOSITION_INVALID = Vec2i(-1, -1);
 const float kMOVEMENT_UNKNOWN = 1e10;
 const Vec2f kFLOW_UNKNOWN = Vec2f(kMOVEMENT_UNKNOWN,kMOVEMENT_UNKNOWN);
 
-
 // Transforms a relative flow R into an absolute flow A, checking for margins
 // Ax = X + Rx , Ay = Y + Ry
 // if either
@@ -533,6 +532,5 @@ vector<Mat_<TValue> > filterT(Mat_<TSrc> src, Mat_<TSrc> src_prev, Mat_<TValue> 
     result.push_back(J_XYT);
     return result;
 }
-
 
 
