@@ -153,13 +153,14 @@ int main(int argc, char** argv)
     /* ---------------- RUN COARSE-TO-FINE PATCHMATCH --------------------------- */
     CTimer CPM_time;
     cout << "Running CPM... " << flush;
-    int step = 3;
+    int cpm_step = 6;
     CPM cpm(cpm_pf_params);
-    cpm.SetStep(step);
-    cpm.SetStereoFlag(1);
+    cpm.SetStep(cpm_step);
+    int com_stereoflag = 1;
+    cpm.SetStereoFlag(com_stereoflag);
     vector<Mat2f> cpm_flow_fwd(nb_imgs-1), cpm_flow_bwd(nb_imgs-1);
     
-    // #pragma omp parallel for 
+    #pragma omp parallel for 
     for (size_t i = 0; i < nb_imgs - 1; ++i) {
         FImage img1(width, height, nch);
         FImage img2(width, height, nch);
@@ -167,10 +168,8 @@ int main(int argc, char** argv)
         Mat3f2FImage(input_RGB_images_vec[i], img1);
         Mat3f2FImage(input_RGB_images_vec[i+1], img2);
 
-        FImage matches;
-        
-
         // Forward flow
+        FImage matches;
         cpm.Matching(img1, img2, matches);
 
         Mat2f flow_fwd(height, width, UNKNOWN_FLOW);
@@ -188,9 +187,7 @@ int main(int argc, char** argv)
     }
     CPM_time.toc(" done in: ");
 
-    // Write results on disk
-    ostringstream cpm_matches_name_builder, cpm_matches_name_flo_builder, cpm_matches_name_png_builder, cpm_matches_name_txt_builder;
-
+    // Write CPM results on disk
     CTimer CPM_write_time;
     cout << "Writing CPM results... " << flush;
     #pragma omp parallel for 
@@ -220,6 +217,7 @@ int main(int argc, char** argv)
     }
     CPM_write_time.toc(" done in: ");
 
+
     /* ---------------- RUN PERMEABILITY FILTER --------------------------- */
     // spatial filter
     CTimer sPF_time;
@@ -233,15 +231,10 @@ int main(int argc, char** argv)
 
         // compute flow confidence map
         Mat1f flow_confidence = getFlowConfidence(flow_forward, flow_backward);
-        // Mat flow_confidence_mat;
-        // flow_confidence.convertTo(flow_confidence_mat, CV_32FC1);
 
         // Apply spatial permeability filter on confidence
         Mat1f flow_confidence_filtered = filterXY<Vec3f>(target_img, flow_confidence, cpm_pf_params);
-        
-        // // Mat flow_confidence_filtered_mat;
-        // flow_confidence_filtered.convertTo(flow_confidence_filtered_mat, CV_32FC1);
-        // WriteFilePFM(flow_confidence_filtered_mat, format("00%d_flow_confidence_filtered_XY_mat_1_channels.pfm", i), 1/255.);
+
 
         // multiply initial confidence and sparse flow
         Mat2f confidenced_flow = Mat2f::zeros(flow_confidence.rows,flow_confidence.cols);
@@ -252,13 +245,9 @@ int main(int argc, char** argv)
                 }
             }
         }
-        //string temp_str1 = format("00%d_confidenced_flow.flo", i);
-        //WriteFlowFile(confidenced_flow, temp_str1.c_str());
 
         //filter confidenced sparse flow
         Mat2f confidenced_flow_XY = filterXY<Vec3f, Vec2f>(target_img, confidenced_flow, cpm_pf_params);
-        //string temp_str2 = format("00%d_confidenced_flow_XY.flo", i);
-        //WriteFlowFile(confidenced_flow_XY, temp_str2.c_str());
 
         // compute normalized spatial filtered flow FXY by division
         Mat2f normalized_confidenced_flow_filtered = Mat2f::zeros(target_img.rows,target_img.cols);
@@ -271,25 +260,31 @@ int main(int argc, char** argv)
         }
 
         pf_spatial_flow_vec.push_back(normalized_confidenced_flow_filtered);
-        
-        ostringstream temp_str3_builder;
-        temp_str3_builder << CPMPF_flows_folder_string << setw(4) << setfill('0') << i + 1 << "_Normalized_Flow_XY.flo";
-        string temp_str3 = temp_str3_builder.str();
-        WriteFlowFile(normalized_confidenced_flow_filtered, temp_str3.c_str());
-
-        vector<Mat1f> normalized_confidenced_flow_filtered_vec;
-        split(normalized_confidenced_flow_filtered, normalized_confidenced_flow_filtered_vec);
-        
-        Mat normalized_confidenced_flow_filtered_mat;
-        normalized_confidenced_flow_filtered_vec[0].convertTo(normalized_confidenced_flow_filtered_mat, CV_32FC1);
-        temp_str3_builder.str("");
-        temp_str3_builder.clear();
-        temp_str3_builder << CPMPF_flows_folder_string << setw(4) << setfill('0') << i + 1 << "_Normalized_Flow_XY.pfm";
-        temp_str3 = temp_str3_builder.str();
-        WriteFilePFM(normalized_confidenced_flow_filtered_mat, temp_str3.c_str(), 1/255.);
-
     }
     sPF_time.toc(" done in: ");
+
+
+    // Write spatial PF results on disk
+    CTimer sPF_write_time;
+    cout << "Writing spatial permeability filter results... " << flush;
+    #pragma omp parallel for 
+    for (size_t i = 0; i < nb_imgs - 1; ++i) {
+        // Remove image file extension
+        string img_name1 = input_images_name_vec[i];
+        string img_name2 = input_images_name_vec[i+1];
+        str_replace(img_name1, img_ext, "");
+        str_replace(img_name2, img_ext, "");
+
+        // Forward matching only
+        string flow_fwd_name = "PF_spatial__" + img_name1 + "__TO__" + img_name2;
+        string flow_fwd_file = CPMPF_flows_folder_string + "/" + flow_fwd_name + ".flo";
+        WriteFlowFile(pf_spatial_flow_vec[i], flow_fwd_file.c_str());
+        
+        flow_fwd_file = CPMPF_flows_folder_string + "/" + flow_fwd_name + ".png";
+        WriteFlowAsImage(pf_spatial_flow_vec[i], flow_fwd_file.c_str(), -1);
+    }
+    sPF_write_time.toc(" done in: ");
+
 
     // temporal filter
     CTimer tPF_time;
@@ -298,9 +293,11 @@ int main(int argc, char** argv)
     Mat2f l_normal_prev = Mat2f::zeros(height, width);
     Mat2f It0_XYT, It1_XYT;
     vector<Mat2f> It1_XYT_vector;
-    vector<Mat2f> pf_temporal_flow_vec;
+    vector<Mat2f> pf_temporal_flow_vec(nb_imgs - 1);
 
-    for (size_t i = 1; i < pf_spatial_flow_vec.size(); ++i)
+    pf_temporal_flow_vec[0] = pf_spatial_flow_vec[0];
+
+    for (size_t i = 1; i < nb_imgs - 1; ++i)
     {
         Mat3f It0 = input_RGB_images_vec[i - 1];
         Mat3f It1 = input_RGB_images_vec[i];
@@ -318,15 +315,33 @@ int main(int argc, char** argv)
         l_prev = It1_XYT_vector[0];
         l_normal_prev = It1_XYT_vector[1];
 
-        pf_temporal_flow_vec.push_back(It1_XYT);
-
-        ostringstream flowXYT1_name_builder;
-        flowXYT1_name_builder << CPMPF_flows_folder_string << setw(4) << setfill('0') << i + 1 << "_XYT.flo";
-        string flowXYT1_name = flowXYT1_name_builder.str();
-        WriteFlowFile(It1_XYT, flowXYT1_name.c_str());
         It0_XYT = It1_XYT;
+
+        pf_temporal_flow_vec[i] = It1_XYT;
     }
     tPF_time.toc(" done in: ");
+
+
+    // Write spatial PF results on disk
+    CTimer tPF_write_time;
+    cout << "Writing temporal permeability filter results... " << flush;
+    #pragma omp parallel for 
+    for (size_t i = 0; i < nb_imgs - 1; ++i) {
+        // Remove image file extension
+        string img_name1 = input_images_name_vec[i];
+        string img_name2 = input_images_name_vec[i+1];
+        str_replace(img_name1, img_ext, "");
+        str_replace(img_name2, img_ext, "");
+
+        // Forward matching only
+        string flow_fwd_name = "PF_temporal__" + img_name1 + "__TO__" + img_name2;
+        string flow_fwd_file = CPMPF_flows_folder_string + "/" + flow_fwd_name + ".flo";
+        WriteFlowFile(pf_temporal_flow_vec[i], flow_fwd_file.c_str());
+        
+        flow_fwd_file = CPMPF_flows_folder_string + "/" + flow_fwd_name + ".png";
+        WriteFlowAsImage(pf_temporal_flow_vec[i], flow_fwd_file.c_str(), -1);
+    }
+    tPF_write_time.toc(" done in: ");
 
 
     /* ---------------- RUN VARIATIONAL REFINEMENT  --------------------------- */
