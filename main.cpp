@@ -114,7 +114,7 @@ int main(int argc, char** argv)
     CTimer CPM_input_time;
     cout << "Reading input RGB images... " << flush;
     vector<Mat3f> input_RGB_images_vec;
-    
+
     for (size_t i = 0; i < input_images_name_vec.size(); i++) {
         Mat tmp_img = imread(input_images_name_vec[i]);
         if ( tmp_img.empty() ) {
@@ -139,6 +139,7 @@ int main(int argc, char** argv)
     vector<Mat2f> cpm_flow_vec;
     ostringstream cpm_matches_name_builder, cpm_matches_name_flo_builder, cpm_matches_name_png_builder, cpm_matches_name_txt_builder;
 
+    #pragma omp parallel for 
     for (size_t i = 0; i < input_RGB_images_vec.size() - 1; ++i) {
         FImage img1(input_RGB_images_vec[i].cols, input_RGB_images_vec[i].rows, input_RGB_images_vec[i].channels());
         FImage img2(input_RGB_images_vec[i+1].cols, input_RGB_images_vec[i+1].rows, input_RGB_images_vec[i+1].channels());
