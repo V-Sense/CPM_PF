@@ -7,7 +7,7 @@
 
 #include "utils.h"
 
-
+/* ---------------- CONVERSION BETWEEN IMAGE TYPES --------------------------- */
 void Match2Flow(FImage& inMat, FImage& ou, FImage& ov, int w, int h)
 {
 	if (!ou.matchDimension(w, h, 1)){
@@ -116,5 +116,14 @@ void image_t2Mat(image_t* in, Mat &out) {
             out.at<float>(y, x) = in->data[y * in->stride + x];
         }
     }
+}
+
+/* ---------------- OPERATIONS ON STRING FOR FILE NAMING --------------------------- */
+bool str_replace(std::string& str, const std::string& from, const std::string& to) {
+    size_t start_pos = str.find(from);
+    if(start_pos == std::string::npos)
+        return false;
+    str.replace(start_pos, from.length(), to);
+    return true;
 }
 

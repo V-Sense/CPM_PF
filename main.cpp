@@ -99,23 +99,32 @@ int main(int argc, char** argv)
     }
 
     // prepare inputs/outputs folders
-    String input_images_folder_string = input_images_folder;
-    String CPM_matches_folder_string = CPM_matches_folder;
-    String CPMPF_flows_folder_string = CPMPF_flows_folder;
-    String refined_CPMPF_flow_folder_string = refined_CPMPF_flow_folder;
+    string input_images_folder_string = input_images_folder;
+    string CPM_matches_folder_string = CPM_matches_folder;
+    string CPMPF_flows_folder_string = CPMPF_flows_folder;
+    string refined_CPMPF_flow_folder_string = refined_CPMPF_flow_folder;
 
-    vector<String> input_images_name_vec;
-    glob(input_images_folder_string, input_images_name_vec);
+    // input RGB images names
+    string img_pre("SAI_08_"), img_suf(".png"), img_ext(".png");
+    size_t start_idx = 7, nb_imgs = 5;
 
+    vector<string> input_images_name_vec(nb_imgs);
+    
     
     /* ---------------- READ INPUT RBG IMAGES --------------------------- */
     CTimer CPM_input_time;
     cout << "Reading input RGB images... " << flush;
-    vector<Mat3f> input_RGB_images_vec;
+    vector<Mat3f> input_RGB_images_vec(nb_imgs);
     int width = -1 , height = -1, nch = -1;
 
-    for (size_t i = 0; i < input_images_name_vec.size(); i++) {
-        Mat tmp_img = imread(input_images_name_vec[i]);
+    for (size_t i = 0; i < nb_imgs; i++) {
+        std::stringstream ss_idx;
+        ss_idx << std::setw(2) << std::setfill('0') << start_idx + i;
+		std::string s_idx = ss_idx.str();
+        String img_name = img_pre + s_idx + img_suf;
+        input_images_name_vec[i] = img_name;
+        
+        Mat tmp_img = imread(input_images_folder_string + "/" + img_name);
         if ( tmp_img.empty() ) {
             cout << input_images_name_vec[i] << " is invalid!" << endl;
             continue;
@@ -136,7 +145,7 @@ int main(int argc, char** argv)
         
         Mat3f tmp_img3f;
         tmp_img.convertTo(tmp_img3f, CV_32F, 1/255.);
-        input_RGB_images_vec.push_back(tmp_img3f);
+        input_RGB_images_vec[i] = tmp_img3f;
     }
     CPM_input_time.toc(" done in: ");
 
@@ -144,14 +153,13 @@ int main(int argc, char** argv)
     /* ---------------- RUN COARSE-TO-FINE PATCHMATCH --------------------------- */
     CTimer CPM_time;
     cout << "Running CPM... " << flush;
-    CPM cpm(cpm_pf_params);
     int step = 3;
+    CPM cpm(cpm_pf_params);
     cpm.SetStep(step);
-    vector<Mat2f> cpm_flow_fwd, cpm_flow_bwd;
-    ostringstream cpm_matches_name_builder, cpm_matches_name_flo_builder, cpm_matches_name_png_builder, cpm_matches_name_txt_builder;
-
-    #pragma omp parallel for 
-    for (size_t i = 0; i < input_RGB_images_vec.size() - 1; ++i) {
+    vector<Mat2f> cpm_flow_fwd(nb_imgs-1), cpm_flow_bwd(nb_imgs-1);
+    
+    // #pragma omp parallel for 
+    for (size_t i = 0; i < nb_imgs - 1; ++i) {
         FImage img1(width, height, nch);
         FImage img2(width, height, nch);
         
@@ -159,72 +167,57 @@ int main(int argc, char** argv)
         Mat3f2FImage(input_RGB_images_vec[i+1], img2);
 
         FImage matches;
-        Mat2f flow(height, width);
-        flow = UNKNOWN_FLOW;
+        
 
-        // Forward flow               
+        // Forward flow
         cpm.Matching(img1, img2, matches);
 
-        Match2Mat2f(matches, flow);
+        Mat2f flow_fwd(height, width, UNKNOWN_FLOW);
+        // flow_fwd = UNKNOWN_FLOW;
+        Match2Mat2f(matches, flow_fwd);
+        cpm_flow_fwd[i] = flow_fwd;
 
-        cpm_flow_fwd.push_back(flow);
+        // Backward flow
+        matches.clear();
+        cpm.Matching(img2, img1, matches);
 
-        // // Write results on disk
-        // cpm_matches_name_builder.str("");
-        // cpm_matches_name_builder.clear();
-        // cpm_matches_name_flo_builder.str("");
-        // cpm_matches_name_flo_builder.clear();
-        // cpm_matches_name_png_builder.str("");
-        // cpm_matches_name_png_builder.clear();
-        // cpm_matches_name_txt_builder.str("");
-        // cpm_matches_name_txt_builder.clear();
-
-        // cpm_matches_name_builder << setw(4) << setfill('0') << i + 1 << '_' << setw(4) << setfill('0') << i + 2;
-        // cpm_matches_name_flo_builder << CPM_matches_folder_string << cpm_matches_name_builder.str() << ".flo";
-        // cpm_matches_name_png_builder << CPM_matches_folder_string << cpm_matches_name_builder.str() << ".png";
-        // cpm_matches_name_txt_builder << CPM_matches_folder_string << cpm_matches_name_builder.str() << ".txt";
-        // string cpm_matches_name_flo = cpm_matches_name_flo_builder.str();
-        // string cpm_matches_name_png = cpm_matches_name_png_builder.str();
-        // string cpm_matches_name_txt = cpm_matches_name_txt_builder.str();
-
-        // FImage u, v;
-        // Match2Flow(matches, u, v, w, h);
-        // OpticFlowIO::WriteFlowFile(u.pData, v.pData, w, h, cpm_matches_name_flo.c_str());
-        // OpticFlowIO::SaveFlowAsImage(cpm_matches_name_png.c_str(), u.pData, v.pData, w, h);
-        // WriteMatches(cpm_matches_name_txt.c_str(), matches);
-
-        // Backward flow               
-        cpm.Matching(img1, img2, matches);
-
-        Match2Mat2f(matches, flow);
-
-        cpm_flow_bwd.push_back(flow);
-
-        // // Write results on disk
-        // cpm_matches_name_builder.str("");
-        // cpm_matches_name_builder.clear();
-        // cpm_matches_name_flo_builder.str("");
-        // cpm_matches_name_flo_builder.clear();
-        // cpm_matches_name_png_builder.str("");
-        // cpm_matches_name_png_builder.clear();
-        // cpm_matches_name_txt_builder.str("");
-        // cpm_matches_name_txt_builder.clear();
-
-        // cpm_matches_name_builder << setw(4) << setfill('0') << i + 2 << '_' << setw(4) << setfill('0') << i + 1;
-        // cpm_matches_name_flo_builder << CPM_matches_folder_string << cpm_matches_name_builder.str() << ".flo";
-        // cpm_matches_name_png_builder << CPM_matches_folder_string << cpm_matches_name_builder.str() << ".png";
-        // cpm_matches_name_txt_builder << CPM_matches_folder_string << cpm_matches_name_builder.str() << ".txt";
-        // cpm_matches_name_flo = cpm_matches_name_flo_builder.str();
-        // cpm_matches_name_png = cpm_matches_name_png_builder.str();
-        // cpm_matches_name_txt = cpm_matches_name_txt_builder.str();
-
-        // Match2Flow(matches, u, v, w, h);
-        // OpticFlowIO::WriteFlowFile(u.pData, v.pData, w, h, cpm_matches_name_flo.c_str());
-        // OpticFlowIO::SaveFlowAsImage(cpm_matches_name_png.c_str(), u.pData, v.pData, w, h);
-        // WriteMatches(cpm_matches_name_txt.c_str(), matches);
+        Mat2f flow_bwd(height, width, UNKNOWN_FLOW);
+        Match2Mat2f(matches, flow_bwd);
+        cpm_flow_bwd[i] = flow_bwd;
     }
     CPM_time.toc(" done in: ");
 
+    // Write results on disk
+    ostringstream cpm_matches_name_builder, cpm_matches_name_flo_builder, cpm_matches_name_png_builder, cpm_matches_name_txt_builder;
+
+    CTimer CPM_write_time;
+    cout << "Writing CPM results... " << flush;
+    #pragma omp parallel for 
+    for (size_t i = 0; i < nb_imgs - 1; ++i) {
+        // Remove image file extension
+        string img_name1 = input_images_name_vec[i];
+        string img_name2 = input_images_name_vec[i+1];
+        str_replace(img_name1, img_ext, "");
+        str_replace(img_name2, img_ext, "");
+
+        // Forward matching
+        string flow_fwd_name = "CPM__" + img_name1 + "__TO__" + img_name2;
+        string flow_fwd_file = CPM_matches_folder_string + "/" + flow_fwd_name + ".flo";
+        WriteFlowFile(cpm_flow_fwd[i], flow_fwd_file.c_str());
+        
+        flow_fwd_file = CPM_matches_folder_string + "/" + flow_fwd_name + ".png";
+        WriteFlowAsImage(cpm_flow_fwd[i], flow_fwd_file.c_str(), -1);
+
+
+        // Backward matching
+        string flow_bwd_name = "CPM__" + img_name2 + "__TO__" + img_name1;
+        string flow_bwd_file = CPM_matches_folder_string + "/" + flow_bwd_name + ".flo";
+        WriteFlowFile(cpm_flow_bwd[i], flow_bwd_file.c_str());
+        
+        flow_bwd_file = CPM_matches_folder_string + "/" + flow_bwd_name + ".png";
+        WriteFlowAsImage(cpm_flow_bwd[i], flow_bwd_file.c_str(), -1);
+    }
+    CPM_write_time.toc(" done in: ");
 
     /* ---------------- RUN PERMEABILITY FILTER --------------------------- */
     // spatial filter
