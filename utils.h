@@ -7,11 +7,11 @@
 #pragma once
 #ifndef UTILS_H
 #define UTILS_H
-#include "CPM_Tip2017Mod/CPM.h"
-#include "CPM_Tip2017Mod/OpticFlowIO.h"
+#include "CPM/CPM.h"
+#include "CPM/OpticFlowIO.h"
 #include "PFilter/PermeabilityFilter.h"
 extern "C" {
-#include "PFilter/variational/variational.h"
+#include "Variational_refinement/variational.h"
 }
 
 void Match2Flow(FImage& inMat, FImage& ou, FImage& ov, int w, int h);

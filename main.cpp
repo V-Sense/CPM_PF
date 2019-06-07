@@ -1,10 +1,10 @@
-#include "CPM_Tip2017Mod/CPM.h"
-#include "CPM_Tip2017Mod/OpticFlowIO.h"
+#include "CPM/CPM.h"
+#include "CPM/OpticFlowIO.h"
 #include "PFilter/PermeabilityFilter.h"
 #include "flowIO.h"
 #include "utils.h"
 extern "C" {
-#include "PFilter/variational/variational.h"
+#include "Variational_refinement/variational.h"
 }
 
 

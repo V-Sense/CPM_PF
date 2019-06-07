@@ -25,6 +25,7 @@ INCLUDE_DIRECTORIES(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CPM_SOURCE_DIR}
     ${PFilter_SOURCE_DIR}
+    ${Variational_refinement_SOURCE_DIR}
     ${OpenCV_INCLUDE_DIRS}
 )
 
@@ -33,7 +34,9 @@ TARGET_LINK_LIBRARIES(${PROJECT_NAME}
     ${OpenCV_LIBS}
     CPM
     PFilter
+    Variational_refinement
 )
 
-ADD_SUBDIRECTORY(CPM_Tip2017Mod)
+ADD_SUBDIRECTORY(CPM)
 ADD_SUBDIRECTORY(PFilter)
+ADD_SUBDIRECTORY(Variational_refinement)
