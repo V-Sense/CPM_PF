@@ -126,6 +126,8 @@ int main(int argc, char** argv)
 
     vector<string> input_images_name_vec(nb_imgs);
 
+    if(ang_dir_string == "ver") cpm_pf_params.CPM_stereo_flag = 0;
+
      
     /* ---------------- READ INPUT RBG IMAGES --------------------------- */
     CTimer CPM_input_time;
@@ -234,9 +236,9 @@ int main(int argc, char** argv)
     // spatial filter
     CTimer sPF_time;
     cout << "Running spatial permeability filter... " << flush;
-    vector<Mat2f> pf_spatial_flow_vec;
+    vector<Mat2f> pf_spatial_flow_vec(nb_imgs);
 
-    for (size_t i = 0; i < cpm_flow_fwd.size(); ++i) {
+    for (size_t i = 0; i < nb_imgs - 1; ++i) {
         Mat3f target_img = input_RGB_images_vec[i];
         Mat2f flow_forward  = cpm_flow_fwd[i];
         Mat2f flow_backward = cpm_flow_bwd[i];
@@ -271,8 +273,47 @@ int main(int argc, char** argv)
             }
         }
 
-        pf_spatial_flow_vec.push_back(normalized_confidenced_flow_filtered);
+        pf_spatial_flow_vec[i] = normalized_confidenced_flow_filtered;
     }
+
+    // For the last image, associate the backward flow with a minus sign
+    Mat3f target_img = input_RGB_images_vec[nb_imgs - 1];
+    Mat2f flow_forward  = cpm_flow_fwd[nb_imgs - 2];
+    Mat2f flow_backward = cpm_flow_bwd[nb_imgs - 2];
+
+    // compute flow confidence map
+    Mat1f flow_confidence = getFlowConfidence(flow_backward, flow_forward);
+
+    // Apply spatial permeability filter on confidence
+    Mat1f flow_confidence_filtered = filterXY<Vec3f>(target_img, flow_confidence, cpm_pf_params);
+
+
+    // multiply initial confidence and sparse flow
+    Mat2f confidenced_flow = Mat2f::zeros(flow_confidence.rows,flow_confidence.cols);
+    for(int y = 0; y < confidenced_flow.rows; y++) {
+        for(int x = 0; x < confidenced_flow.cols; x++) {
+            for(int c = 0; c < confidenced_flow.channels(); c++) {
+                confidenced_flow(y,x)[c] = -flow_backward(y,x)[c] * flow_confidence(y,x);
+            }
+        }
+    }
+
+    //filter confidenced sparse flow
+    Mat2f confidenced_flow_XY = filterXY<Vec3f, Vec2f>(target_img, confidenced_flow, cpm_pf_params);
+
+    // compute normalized spatial filtered flow FXY by division
+    Mat2f normalized_confidenced_flow_filtered = Mat2f::zeros(target_img.rows,target_img.cols);
+    for(int y = 0; y < confidenced_flow_XY.rows; y++) {
+        for(int x = 0; x < confidenced_flow_XY.cols; x++) {
+            for(int c = 0; c < confidenced_flow_XY.channels(); c++) {
+                normalized_confidenced_flow_filtered(y,x)[c] = confidenced_flow_XY(y,x)[c] / flow_confidence_filtered(y,x);
+            }
+        }
+    }
+
+    pf_spatial_flow_vec[nb_imgs - 1] = normalized_confidenced_flow_filtered;
+    
+
     sPF_time.toc(" done in: ");
 
 
@@ -280,10 +321,17 @@ int main(int argc, char** argv)
     CTimer sPF_write_time;
     cout << "Writing spatial permeability filter results... " << flush;
     #pragma omp parallel for 
-    for (size_t i = 0; i < nb_imgs - 1; ++i) {
+    for (size_t i = 0; i < nb_imgs; ++i) {
         // Remove image file extension
-        string img_name1 = input_images_name_vec[i];
-        string img_name2 = input_images_name_vec[i+1];
+        string img_name1, img_name2; 
+        if( i == (nb_imgs-1)) {
+            img_name1 = input_images_name_vec[i];
+            img_name2 = input_images_name_vec[i-1];
+        }
+        else {
+            img_name1 = input_images_name_vec[i];
+            img_name2 = input_images_name_vec[i+1];
+        }
         str_replace(img_name1, img_ext_string, "");
         str_replace(img_name2, img_ext_string, "");
 
@@ -305,11 +353,11 @@ int main(int argc, char** argv)
     Mat2f l_normal_prev = Mat2f::zeros(height, width);
     Mat2f It0_XYT, It1_XYT;
     vector<Mat2f> It1_XYT_vector;
-    vector<Mat2f> pf_temporal_flow_vec(nb_imgs - 1);
+    vector<Mat2f> pf_temporal_flow_vec(nb_imgs);
 
     pf_temporal_flow_vec[0] = pf_spatial_flow_vec[0];
 
-    for (size_t i = 1; i < nb_imgs - 1; ++i)
+    for (size_t i = 1; i < nb_imgs; ++i)
     {
         Mat3f It0 = input_RGB_images_vec[i - 1];
         Mat3f It1 = input_RGB_images_vec[i];
@@ -338,10 +386,17 @@ int main(int argc, char** argv)
     CTimer tPF_write_time;
     cout << "Writing temporal permeability filter results... " << flush;
     #pragma omp parallel for 
-    for (size_t i = 0; i < nb_imgs - 1; ++i) {
+    for (size_t i = 0; i < nb_imgs; ++i) {
         // Remove image file extension
-        string img_name1 = input_images_name_vec[i];
-        string img_name2 = input_images_name_vec[i+1];
+        string img_name1, img_name2;
+        if( i == (nb_imgs-1)) {
+            img_name1 = input_images_name_vec[i];
+            img_name2 = input_images_name_vec[i-1];
+        }
+        else {
+            img_name1 = input_images_name_vec[i];
+            img_name2 = input_images_name_vec[i+1];
+        }
         str_replace(img_name1, img_ext_string, "");
         str_replace(img_name2, img_ext_string, "");
 
@@ -361,18 +416,21 @@ int main(int argc, char** argv)
     cout << "Running variational refinement... " << flush;
     color_image_t *im1 = color_image_new(width, height);
     color_image_t *im2 = color_image_new(width, height);
-    vector<Mat2f> vr_flow_vec(nb_imgs - 1);
+    vector<Mat2f> vr_flow_vec(nb_imgs);
+    Mat2f pf_flow;
 
-    for (size_t i = 0; i < nb_imgs - 1; ++i) {
-        if(i == 0){
+    for (size_t i = 0; i < nb_imgs ; ++i) {
+        if(i == (nb_imgs-1)){
             Mat3f2color_image_t(input_RGB_images_vec[i], im1);
-            Mat3f2color_image_t(input_RGB_images_vec[i + 1], im2);
+            Mat3f2color_image_t(input_RGB_images_vec[i - 1], im2);
+            pf_flow = -pf_temporal_flow_vec[i];
         }
         else {
-            Mat3f2color_image_t(input_RGB_images_vec[i-1], im1);
-            Mat3f2color_image_t(input_RGB_images_vec[i], im2);
+            Mat3f2color_image_t(input_RGB_images_vec[i], im1);
+            Mat3f2color_image_t(input_RGB_images_vec[i + 1], im2);
+            pf_flow = pf_temporal_flow_vec[i];
         }
-        Mat2f pf_flow = pf_temporal_flow_vec[i];
+        
 
         variational_params_t flow_params;
         variational_params_default(&flow_params);
@@ -395,10 +453,17 @@ int main(int argc, char** argv)
     CTimer vr_write_time;
     cout << "Writing variational refinement results... " << flush;
     #pragma omp parallel for 
-    for (size_t i = 0; i < nb_imgs - 1; ++i) {
+    for (size_t i = 0; i < nb_imgs; ++i) {
         // Remove image file extension
-        string img_name1 = input_images_name_vec[i];
-        string img_name2 = input_images_name_vec[i+1];
+        string img_name1, img_name2;
+        if( i == (nb_imgs-1)) {
+            img_name1 = input_images_name_vec[i];
+            img_name2 = input_images_name_vec[i-1];
+        }
+        else {
+            img_name1 = input_images_name_vec[i];
+            img_name2 = input_images_name_vec[i+1];
+        }
         str_replace(img_name1, img_ext_string, "");
         str_replace(img_name2, img_ext_string, "");
 
@@ -419,7 +484,7 @@ int main(int argc, char** argv)
         }
         else if(ang_dir_string == "ver") {
             string disp_file = refined_CPMPF_flow_folder_string +  "DISP__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-            WriteFilePFM(-vr_flow_split[1], disp_file.c_str(), 1/255.0);
+            WriteFilePFM(vr_flow_split[1], disp_file.c_str(), 1/255.0);
         }
     }
     vr_write_time.toc(" done in: ");
