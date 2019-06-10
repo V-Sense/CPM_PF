@@ -23,6 +23,12 @@ class cpmpf_parameters
 {
 public:
 	/* Public Variables */
+    // Output folders
+    std::string output_CPM_dir;
+    std::string output_PF_dir;
+    std::string output_VR_dir;
+    bool write_intermediate_results;
+
     // CPM parameters
     int CPM_max_displacement_input_int;
     int CPM_check_threshold_input_int;

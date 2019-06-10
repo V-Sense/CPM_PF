@@ -27,9 +27,14 @@ void Usage()
         << "C++ implementation." << endl
         << endl
         << "Usage:" << endl
-        << "  ./CPMPF <input_image_folder> <img_pre> <img_suf> <img_ext> <start_idx> <nb_imgs> <ang_dir> <CPM_match_folder> <CPMPF_flow_folder> <refined_CPMPF_flow_folder> [options]" << endl
+        << "  ./CPMPF <input_image_folder> <img_pre> <img_suf> <img_ext> <start_idx> <nb_imgs> <ang_dir> [options]" << endl
         << "Options:" << endl
         << "    -h, -help                                  print this message" << endl
+        << "  Output result folders:" << endl
+        << "    -o, -output_VR                             set the final output folder (after variational refinement), default is <input_image_folder>" << endl
+        << "    -save_intermediate                         use this flag to save results from CPM and PF steps, use the following flages to set the output folders" << endl
+        << "    -output_CPM                                set the output folder for the Coarse-to-fine Patchmatch step, default is <input_image_folder>" << endl
+        << "    -output_PF                                 set the output folder for the Permeability Filter steps (both spatial and temporal, default is <input_image_folder>" << endl
         << "  CPM parameters:" << endl
         << "    -CPM_max                                   outlier handling maxdisplacement threshold" << endl
         << "    -CPM_fbth                                  forward and backward consistency threshold" << endl
@@ -101,6 +106,19 @@ void parse_cmd(int argc, char** argv, int current_arg, cpmpf_parameters &cpm_pf_
             cpm_pf_params.set_dataset(string("Stanford"));
         else if( isarg("-TCH") ) 
             cpm_pf_params.set_dataset(string("TCH"));
+
+        // Output folders
+        // Final results
+        else if( isarg("-o") || isarg("-output_VR") )
+            cpm_pf_params.output_VR_dir = string(argv[current_arg++]);
+        // Intermediate results
+        else if( isarg("-save_intermediate") )
+            cpm_pf_params.write_intermediate_results = true;
+        else if( isarg("-output_CPM") )
+            cpm_pf_params.output_CPM_dir = string(argv[current_arg++]);
+        else if( isarg("-output_PF") )
+            cpm_pf_params.output_PF_dir = string(argv[current_arg++]);
+
         else {
             fprintf(stderr, "unknown argument %s\n", a);
             Usage();
@@ -111,7 +129,7 @@ void parse_cmd(int argc, char** argv, int current_arg, cpmpf_parameters &cpm_pf_
 
 int main(int argc, char** argv)
 {
-    if (argc < 11){
+    if (argc < 8){
         if (argc > 1) fprintf(stderr, "Error: not enough arguments\n");
         Usage();
         exit(1);
@@ -122,40 +140,28 @@ int main(int argc, char** argv)
     /* ---------------- PARSE COMMAND LINE --------------------------- */
     // Mandatory parameters
     int current_arg = 1;
-    char* input_images_folder = argv[current_arg++];
-    char* img_pre = argv[current_arg++];
-    char* img_suf = argv[current_arg++];
-    char* img_ext = argv[current_arg++];
+    string input_images_folder = string(argv[current_arg++]);
+    string img_pre = string(argv[current_arg++]);
+    string img_suf = string(argv[current_arg++]);
+    string img_ext = string(argv[current_arg++]);
     int start_idx = atoi(argv[current_arg++]);
     int nb_imgs = atoi(argv[current_arg++]);
-    char* ang_dir = argv[current_arg++];
+    string ang_dir = string(argv[current_arg++]);
 
-    // Intermediate results folder, default is the input folder
-    char* CPM_matches_folder = argv[current_arg++];
-    char* CPMPF_flows_folder = argv[current_arg++];
-
-    // Final result folder, default is the input folder
-    char* refined_CPMPF_flow_folder = argv[current_arg++];
+    cpmpf_parameters cpm_pf_params; // Initiates default params
+    
+    // Results folder, default is the input folder
+    cpm_pf_params.output_CPM_dir = input_images_folder;
+    cpm_pf_params.output_PF_dir  = input_images_folder;
+    cpm_pf_params.output_VR_dir  = input_images_folder;
     
     // Optional parameters
-    cpmpf_parameters cpm_pf_params; // Initiates default params
-    std::cout << cpm_pf_params << std::endl;
     parse_cmd(argc, argv, current_arg, cpm_pf_params);
-    std::cout << cpm_pf_params << std::endl;
-
-    // define inputs/outputs paths
-    string input_images_folder_string = input_images_folder;
-    string img_pre_string = img_pre;
-    string img_suf_string = img_suf;
-    string img_ext_string = img_ext;
-    string ang_dir_string = ang_dir; // Angular direction along which flow is estimated
-    string CPM_matches_folder_string = CPM_matches_folder;
-    string CPMPF_flows_folder_string = CPMPF_flows_folder;
-    string refined_CPMPF_flow_folder_string = refined_CPMPF_flow_folder;
+    
 
     vector<string> input_images_name_vec(nb_imgs);
 
-    if(ang_dir_string == "ver") cpm_pf_params.CPM_stereo_flag = 0;
+    if(ang_dir == "ver") cpm_pf_params.CPM_stereo_flag = 0;
 
      
     /* ---------------- READ INPUT RBG IMAGES --------------------------- */
@@ -168,10 +174,10 @@ int main(int argc, char** argv)
         std::stringstream ss_idx;
         ss_idx << std::setw(2) << std::setfill('0') << start_idx + i;
 		std::string s_idx = ss_idx.str();
-        String img_name = img_pre_string + s_idx + img_suf_string;
+        String img_name = img_pre + s_idx + img_suf;
         input_images_name_vec[i] = img_name;
         
-        Mat tmp_img = imread(input_images_folder_string + "/" + img_name);
+        Mat tmp_img = imread(input_images_folder + "/" + img_name);
         if ( tmp_img.empty() ) {
             std::cout << input_images_name_vec[i] << " is invalid!" << endl;
             continue;
@@ -230,35 +236,38 @@ int main(int argc, char** argv)
     }
     CPM_time.toc(" done in: ");
 
+
     // Write CPM results on disk
-    CTimer CPM_write_time;
-    std::cout << "Writing CPM results... " << flush;
-    #pragma omp parallel for 
-    for (size_t i = 0; i < nb_imgs - 1; ++i) {
-        // Remove image file extension
-        string img_name1 = input_images_name_vec[i];
-        string img_name2 = input_images_name_vec[i+1];
-        str_replace(img_name1, img_ext_string, "");
-        str_replace(img_name2, img_ext_string, "");
+    if(cpm_pf_params.write_intermediate_results) {
+        CTimer CPM_write_time;
+        std::cout << "Writing CPM results... " << flush;
+        #pragma omp parallel for 
+        for (size_t i = 0; i < nb_imgs - 1; ++i) {
+            // Remove image file extension
+            string img_name1 = input_images_name_vec[i];
+            string img_name2 = input_images_name_vec[i+1];
+            str_replace(img_name1, img_ext, "");
+            str_replace(img_name2, img_ext, "");
 
-        // Forward matching
-        string flow_fwd_name = "CPM__" + img_name1 + "__TO__" + img_name2;
-        string flow_fwd_file = CPM_matches_folder_string + "/" + flow_fwd_name + ".flo";
-        WriteFlowFile(cpm_flow_fwd[i], flow_fwd_file.c_str());
-        
-        flow_fwd_file = CPM_matches_folder_string + "/" + flow_fwd_name + ".png";
-        WriteFlowAsImage(cpm_flow_fwd[i], flow_fwd_file.c_str(), -1);
+            // Forward matching
+            string flow_fwd_name = "CPM__" + img_name1 + "__TO__" + img_name2;
+            string flow_fwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_fwd_name + ".flo";
+            WriteFlowFile(cpm_flow_fwd[i], flow_fwd_file.c_str());
+            
+            flow_fwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_fwd_name + ".png";
+            WriteFlowAsImage(cpm_flow_fwd[i], flow_fwd_file.c_str(), -1);
 
 
-        // Backward matching
-        string flow_bwd_name = "CPM__" + img_name2 + "__TO__" + img_name1;
-        string flow_bwd_file = CPM_matches_folder_string + "/" + flow_bwd_name + ".flo";
-        WriteFlowFile(cpm_flow_bwd[i], flow_bwd_file.c_str());
-        
-        flow_bwd_file = CPM_matches_folder_string + "/" + flow_bwd_name + ".png";
-        WriteFlowAsImage(cpm_flow_bwd[i], flow_bwd_file.c_str(), -1);
+            // Backward matching
+            string flow_bwd_name = "CPM__" + img_name2 + "__TO__" + img_name1;
+            string flow_bwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_bwd_name + ".flo";
+            WriteFlowFile(cpm_flow_bwd[i], flow_bwd_file.c_str());
+            
+            flow_bwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_bwd_name + ".png";
+            WriteFlowAsImage(cpm_flow_bwd[i], flow_bwd_file.c_str(), -1);
+        }
+        CPM_write_time.toc(" done in: ");
     }
-    CPM_write_time.toc(" done in: ");
 
 
     /* ---------------- RUN PERMEABILITY FILTER --------------------------- */
@@ -347,33 +356,34 @@ int main(int argc, char** argv)
 
 
     // Write spatial PF results on disk
-    CTimer sPF_write_time;
-    std::cout << "Writing spatial permeability filter results... " << flush;
-    #pragma omp parallel for 
-    for (size_t i = 0; i < nb_imgs; ++i) {
-        // Remove image file extension
-        string img_name1, img_name2; 
-        if( i == (nb_imgs-1)) {
-            img_name1 = input_images_name_vec[i];
-            img_name2 = input_images_name_vec[i-1];
-        }
-        else {
-            img_name1 = input_images_name_vec[i];
-            img_name2 = input_images_name_vec[i+1];
-        }
-        str_replace(img_name1, img_ext_string, "");
-        str_replace(img_name2, img_ext_string, "");
+    if(cpm_pf_params.write_intermediate_results) {
+        CTimer sPF_write_time;
+        std::cout << "Writing spatial permeability filter results... " << flush;
+        #pragma omp parallel for 
+        for (size_t i = 0; i < nb_imgs; ++i) {
+            // Remove image file extension
+            string img_name1, img_name2; 
+            if( i == (nb_imgs-1)) {
+                img_name1 = input_images_name_vec[i];
+                img_name2 = input_images_name_vec[i-1];
+            }
+            else {
+                img_name1 = input_images_name_vec[i];
+                img_name2 = input_images_name_vec[i+1];
+            }
+            str_replace(img_name1, img_ext, "");
+            str_replace(img_name2, img_ext, "");
 
-        // Forward matching only
-        string flow_fwd_name = "PF_spatial__" + img_name1 + "__TO__" + img_name2;
-        string flow_fwd_file = CPMPF_flows_folder_string + "/" + flow_fwd_name + ".flo";
-        WriteFlowFile(pf_spatial_flow_vec[i], flow_fwd_file.c_str());
-        
-        flow_fwd_file = CPMPF_flows_folder_string + "/" + flow_fwd_name + ".png";
-        WriteFlowAsImage(pf_spatial_flow_vec[i], flow_fwd_file.c_str(), -1);
+            // Forward matching only
+            string flow_fwd_name = "PF_spatial__" + img_name1 + "__TO__" + img_name2;
+            string flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".flo";
+            WriteFlowFile(pf_spatial_flow_vec[i], flow_fwd_file.c_str());
+            
+            flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".png";
+            WriteFlowAsImage(pf_spatial_flow_vec[i], flow_fwd_file.c_str(), -1);
+        }
+        sPF_write_time.toc(" done in: ");
     }
-    sPF_write_time.toc(" done in: ");
-
 
     // temporal filter
     CTimer tPF_time;
@@ -411,33 +421,35 @@ int main(int argc, char** argv)
     tPF_time.toc(" done in: ");
 
 
-    // Write spatial PF results on disk
-    CTimer tPF_write_time;
-    std::cout << "Writing temporal permeability filter results... " << flush;
-    #pragma omp parallel for 
-    for (size_t i = 0; i < nb_imgs; ++i) {
-        // Remove image file extension
-        string img_name1, img_name2;
-        if( i == (nb_imgs-1)) {
-            img_name1 = input_images_name_vec[i];
-            img_name2 = input_images_name_vec[i-1];
-        }
-        else {
-            img_name1 = input_images_name_vec[i];
-            img_name2 = input_images_name_vec[i+1];
-        }
-        str_replace(img_name1, img_ext_string, "");
-        str_replace(img_name2, img_ext_string, "");
+    // Write temporal PF results on disk
+    if(cpm_pf_params.write_intermediate_results) {
+        CTimer tPF_write_time;
+        std::cout << "Writing temporal permeability filter results... " << flush;
+        #pragma omp parallel for 
+        for (size_t i = 0; i < nb_imgs; ++i) {
+            // Remove image file extension
+            string img_name1, img_name2;
+            if( i == (nb_imgs-1)) {
+                img_name1 = input_images_name_vec[i];
+                img_name2 = input_images_name_vec[i-1];
+            }
+            else {
+                img_name1 = input_images_name_vec[i];
+                img_name2 = input_images_name_vec[i+1];
+            }
+            str_replace(img_name1, img_ext, "");
+            str_replace(img_name2, img_ext, "");
 
-        // Forward matching only
-        string flow_fwd_name = "PF_temporal__" + img_name1 + "__TO__" + img_name2;
-        string flow_fwd_file = CPMPF_flows_folder_string + "/" + flow_fwd_name + ".flo";
-        WriteFlowFile(pf_temporal_flow_vec[i], flow_fwd_file.c_str());
-        
-        flow_fwd_file = CPMPF_flows_folder_string + "/" + flow_fwd_name + ".png";
-        WriteFlowAsImage(pf_temporal_flow_vec[i], flow_fwd_file.c_str(), -1);
+            // Forward matching only
+            string flow_fwd_name = "PF_temporal__" + img_name1 + "__TO__" + img_name2;
+            string flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".flo";
+            WriteFlowFile(pf_temporal_flow_vec[i], flow_fwd_file.c_str());
+            
+            flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".png";
+            WriteFlowAsImage(pf_temporal_flow_vec[i], flow_fwd_file.c_str(), -1);
+        }
+        tPF_write_time.toc(" done in: ");
     }
-    tPF_write_time.toc(" done in: ");
 
 
     /* ---------------- RUN VARIATIONAL REFINEMENT  --------------------------- */
@@ -493,26 +505,26 @@ int main(int argc, char** argv)
             img_name1 = input_images_name_vec[i];
             img_name2 = input_images_name_vec[i+1];
         }
-        str_replace(img_name1, img_ext_string, "");
-        str_replace(img_name2, img_ext_string, "");
+        str_replace(img_name1, img_ext, "");
+        str_replace(img_name2, img_ext, "");
 
         // Forward matching only
         string flow_fwd_name = "VR__" + img_name1 + "__TO__" + img_name2;
-        string flow_fwd_file = refined_CPMPF_flow_folder_string + "/" + flow_fwd_name + ".flo";
+        string flow_fwd_file = cpm_pf_params.output_VR_dir + "/" + flow_fwd_name + ".flo";
         WriteFlowFile(vr_flow_vec[i], flow_fwd_file.c_str());
         
-        flow_fwd_file = refined_CPMPF_flow_folder_string + "/" + flow_fwd_name + ".png";
+        flow_fwd_file = cpm_pf_params.output_VR_dir + "/" + flow_fwd_name + ".png";
         WriteFlowAsImage(vr_flow_vec[i], flow_fwd_file.c_str(), -1);
 
         // Convert to disparity
         vector<Mat1f> vr_flow_split;
         cv::split(vr_flow_vec[i], vr_flow_split);
-        if(ang_dir_string == "hor") {
-            string disp_file = refined_CPMPF_flow_folder_string +  "DISP__" + img_name1 + "__TO__" + img_name2 + ".pfm";
+        if(ang_dir == "hor") {
+            string disp_file = cpm_pf_params.output_VR_dir +  "/DISP__" + img_name1 + "__TO__" + img_name2 + ".pfm";
             WriteFilePFM(-vr_flow_split[0], disp_file.c_str(), 1/255.0);
         }
-        else if(ang_dir_string == "ver") {
-            string disp_file = refined_CPMPF_flow_folder_string +  "DISP__" + img_name1 + "__TO__" + img_name2 + ".pfm";
+        else if(ang_dir == "ver") {
+            string disp_file = cpm_pf_params.output_VR_dir +  "/DISP__" + img_name1 + "__TO__" + img_name2 + ".pfm";
             WriteFilePFM(vr_flow_split[1], disp_file.c_str(), 1/255.0);
         }
     }
