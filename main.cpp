@@ -5,7 +5,6 @@
 #include "utils.h"
 extern "C" {
 #include "Variational_refinement/variational.h"
-#include "Variational_refinement/io.h"
 }
 
 

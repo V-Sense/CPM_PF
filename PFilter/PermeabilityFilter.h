@@ -368,16 +368,31 @@ Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, c
 
     Mat_<TSrc> I_prev_warped = Mat_<TSrc>::zeros(h,w);
 
-    Mat2f prev_map = Mat2f::zeros(h,w);
+    Mat prev_map_x = Mat::zeros(h,w, CV_32FC1);
+    Mat prev_map_y = Mat::zeros(h,w, CV_32FC1);
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++){
-            prev_map(y,x)[0] = x - flow_prev_XYT(y,x)[0];
-            prev_map(y,x)[1] = y - flow_prev_XYT(y,x)[1];
+            prev_map_x.at<float>(y,x) = x - flow_prev_XYT(y,x)[0];
+            prev_map_y.at<float>(y,x) = y - flow_prev_XYT(y,x)[1];
         }
     }
-    std::vector<Mat1f> prev_maps(num_channels_flow);
-    split(prev_map, prev_maps);
-    remap(I_prev, I_prev_warped, prev_maps[0], prev_maps[1], cv::INTER_CUBIC);
+    
+    Mat map_x = Mat::zeros(h,w, CV_16SC2);
+    Mat map_y = Mat::zeros(h,w, CV_16UC1);
+    convertMaps(prev_map_x, prev_map_y, map_x, map_y, CV_16SC2);
+    
+    remap(I_prev, I_prev_warped, map_x, map_y, cv::INTER_CUBIC);
+
+    // Mat2f prev_map = Mat2f::zeros(h,w);
+    // for (int y = 0; y < h; y++) {
+    //     for (int x = 0; x < w; x++){
+    //         prev_map(y,x)[0] = x - flow_prev_XYT(y,x)[0];
+    //         prev_map(y,x)[1] = y - flow_prev_XYT(y,x)[1];
+    //     }
+    // }
+    // std::vector<Mat1f> prev_maps(num_channels_flow);
+    // split(prev_map, prev_maps);
+    // remap(I_prev, I_prev_warped, prev_maps[0], prev_maps[1], cv::INTER_CUBIC);
 
     // Mat I_org, I_warp;
     // I.convertTo(I_org, CV_8UC3, 255);
@@ -407,7 +422,8 @@ Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, c
     pow(1 + perm_photo, -1, perm_photo);
 
     Mat2f flow_prev_XYT_warped  = Mat2f::zeros(h,w);;
-    remap(flow_prev_XYT, flow_prev_XYT_warped, prev_maps[0], prev_maps[1], cv::INTER_CUBIC);
+    // remap(flow_prev_XYT, flow_prev_XYT_warped, prev_maps[0], prev_maps[1], cv::INTER_CUBIC);
+    remap(flow_prev_XYT, flow_prev_XYT_warped, map_x, map_y, cv::INTER_CUBIC);
     // Equation 12
     Mat2f diff_flow = flow_XY - flow_prev_XYT_warped;
     std::vector<Mat1f> diff_flow_channels(num_channels_flow);
