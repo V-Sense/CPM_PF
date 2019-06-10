@@ -25,9 +25,14 @@ void Usage()
 {
     std::cout<< endl
         << "Usage:" << endl
-        << "  ./CPMPF <input_image_folder> <img_pre> <img_suf> <img_ext> <start_idx> <nb_imgs> <ang_dir> [options]" << endl
+        << "  ./CPMPF <input_image_folder> <img_pre> <img_ext> <start_idx> <nb_imgs> <ang_dir> [options]" << endl
         << "Options:" << endl
         << "    -h, -help                                  print this message" << endl
+        << "  Additional image naming options:" << endl
+        << "    -img_idx_width                             length of the image index number" << endl
+        << "    -img_skip                                  index number skip" << endl
+        << "    -img_suf                                   suffix to add before image format extension" << endl
+        << "    -output_PF                                 set the output folder for the Permeability Filter steps (both spatial and temporal, default is <input_image_folder>" << endl
         << "  Output result folders:" << endl
         << "    -o, -output_VR                             set the final output folder (after variational refinement), default is <input_image_folder>" << endl
         << "    -save_intermediate                         use this flag to save results from CPM and PF steps, use the following flages to set the output folders" << endl
@@ -117,6 +122,15 @@ void parse_cmd(int argc, char** argv, int current_arg, cpmpf_parameters &cpm_pf_
         else if( isarg("-output_PF") )
             cpm_pf_params.output_PF_dir = string(argv[current_arg++]);
 
+        // Additional options for input image naming
+        else if( isarg("-img_idx_width") ) // Number of zeros in the index
+            cpm_pf_params.img_idx_width = atoi(argv[current_arg++]);
+        else if( isarg("-img_skip") )
+            cpm_pf_params.img_skip = atoi(argv[current_arg++]);
+        else if( isarg("-img_suf") )
+            cpm_pf_params.img_suf = string(argv[current_arg++]);            
+
+
         else {
             fprintf(stderr, "unknown argument %s\n", a);
             Usage();
@@ -127,7 +141,7 @@ void parse_cmd(int argc, char** argv, int current_arg, cpmpf_parameters &cpm_pf_
 
 int main(int argc, char** argv)
 {
-    if (argc < 8){
+    if (argc < 7){
         if (argc > 1) fprintf(stderr, "Error: not enough arguments\n");
         Usage();
         exit(1);
@@ -140,7 +154,7 @@ int main(int argc, char** argv)
     int current_arg = 1;
     string input_images_folder = string(argv[current_arg++]);
     string img_pre = string(argv[current_arg++]);
-    string img_suf = string(argv[current_arg++]);
+    if(img_pre == "none") img_pre = "";
     string img_ext = string(argv[current_arg++]);
     int start_idx = atoi(argv[current_arg++]);
     int nb_imgs = atoi(argv[current_arg++]);
@@ -164,17 +178,18 @@ int main(int argc, char** argv)
      
     /* ---------------- READ INPUT RBG IMAGES --------------------------- */
     CTimer CPM_input_time;
-    std::cout << "Reading input RGB images... " << flush;
+    std::cout << "Reading input RGB images... " << endl;
     vector<Mat3f> input_RGB_images_vec(nb_imgs);
     int width = -1 , height = -1, nch = -1;
 
     for (size_t i = 0; i < nb_imgs; i++) {
         std::stringstream ss_idx;
-        ss_idx << std::setw(2) << std::setfill('0') << start_idx + i;
+        ss_idx << std::setw(cpm_pf_params.img_idx_width) << std::setfill('0') << start_idx + i * cpm_pf_params.img_skip;
 		std::string s_idx = ss_idx.str();
-        String img_name = img_pre + s_idx + img_suf;
+        String img_name = img_pre + s_idx + cpm_pf_params.img_suf + img_ext;
         input_images_name_vec[i] = img_name;
         
+        std::cout << input_images_folder + "/" + img_name << endl;
         Mat tmp_img = imread(input_images_folder + "/" + img_name);
         if ( tmp_img.empty() ) {
             std::cout << input_images_name_vec[i] << " is invalid!" << endl;

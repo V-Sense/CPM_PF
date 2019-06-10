@@ -310,8 +310,8 @@ double MotionToColor(cv::Mat2f& flow, unsigned char* fillPix, float range /*= -1
 // write a 2-band image into a color coded png flow file
 void WriteFlowAsImage(cv::Mat2f& flow, const char* imgName, float range /*= -1*/)
 {
-    int w = flow.rows;
-    int h = flow.cols;
+    int w = flow.cols;
+    int h = flow.rows;
 
 	cv::Mat img(h, w, CV_8UC4);
 	float maxFlow = MotionToColor(flow, img.data, range);

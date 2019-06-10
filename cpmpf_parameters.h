@@ -29,6 +29,11 @@ public:
     std::string output_VR_dir;
     bool write_intermediate_results;
 
+    // Addition naming options for input images
+    int img_idx_width;
+    int img_skip;
+    std::string img_suf;
+
     // CPM parameters
     int CPM_max_displacement_input_int;
     int CPM_check_threshold_input_int;
