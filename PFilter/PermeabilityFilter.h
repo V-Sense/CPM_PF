@@ -1,3 +1,15 @@
+/**
+ * ORIGINAL RELEASE November 2018
+ * Author:   Yang Chen
+ * Contact:  cheny5@scss.tcd.ie 
+ * Institution:  V-SENSE, School of Computer Science, Trinity College Dublin
+  * 
+ * UPDATED June 2019
+ * Author:   Martin Alain
+ * Contact:  alainm@scss.tcd.ie 
+ * Institution:  V-SENSE, School of Computer Science, Trinity College Dublin
+ */
+
 #pragma once
 
 #define _USE_MATH_DEFINES
@@ -5,7 +17,7 @@
 #include <cmath>
 #include <assert.h>
 
-#include "globals.h"
+#include "cpmpf_parameters.h"
 #include "flowIO.h"
 #include "ImageIOpfm.h"
 
@@ -162,7 +174,7 @@ Mat1f computeSpatialPermeability(Mat_<TSrc> src, float delta_XY, float alpha_XY)
 
 // For single-channel target image J
 template <class TSrc>
-Mat1f filterXY(const Mat_<TSrc> I, const Mat1f J, const cpm_pf_params_t &cpm_pf_params)
+Mat1f filterXY(const Mat_<TSrc> I, const Mat1f J, const cpmpf_parameters &cpm_pf_params)
 {
     // Input image
     int h = I.rows;
@@ -256,7 +268,7 @@ Mat1f filterXY(const Mat_<TSrc> I, const Mat1f J, const cpm_pf_params_t &cpm_pf_
 
 // For multi-channel target image J
 template <class TSrc, class TValue>
-Mat_<TValue> filterXY(const Mat_<TSrc> I, const Mat_<TValue> J, const cpm_pf_params_t &cpm_pf_params)
+Mat_<TValue> filterXY(const Mat_<TSrc> I, const Mat_<TValue> J, const cpmpf_parameters &cpm_pf_params)
 {
     // Input image
     int h = I.rows;

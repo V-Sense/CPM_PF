@@ -8,7 +8,7 @@
 
 #define UNKNOWN_FLOW 1e10
 
-CPM::CPM(cpm_pf_params_t &cpm_pf_params)
+CPM::CPM(cpmpf_parameters &cpm_pf_params)
 {
 	// default parameters
 	// _step = 3;

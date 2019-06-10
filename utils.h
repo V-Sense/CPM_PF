@@ -1,8 +1,13 @@
-/*  Name:
- *      utils.h
- *
- *  Description:
- *      Miscellaneous utilities for convenience
+/**
+ * ORIGINAL RELEASE November 2018
+ * Author:   Yang Chen
+ * Contact:  cheny5@scss.tcd.ie 
+ * Institution:  V-SENSE, School of Computer Science, Trinity College Dublin
+  * 
+ * UPDATED June 2019
+ * Author:   Martin Alain
+ * Contact:  alainm@scss.tcd.ie 
+ * Institution:  V-SENSE, School of Computer Science, Trinity College Dublin
  */
 
 #pragma once
@@ -36,6 +41,8 @@ void image_t2Mat(image_t* in, Mat &out);
 
 /* ---------------- OPERATIONS ON STRING FOR FILE NAMING --------------------------- */
 bool str_replace(std::string& str, const std::string& from, const std::string& to);
+
+
 
 
 

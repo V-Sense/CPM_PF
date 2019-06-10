@@ -1,8 +1,13 @@
-/*  Name:
- *      utils.cpp
- *
- *  Description:
- *      Miscellaneous utilities, mainly conversion between different image formats / data types
+/**
+ * ORIGINAL RELEASE November 2018
+ * Author:   Yang Chen
+ * Contact:  cheny5@scss.tcd.ie 
+ * Institution:  V-SENSE, School of Computer Science, Trinity College Dublin
+  * 
+ * UPDATED June 2019
+ * Author:   Martin Alain
+ * Contact:  alainm@scss.tcd.ie 
+ * Institution:  V-SENSE, School of Computer Science, Trinity College Dublin
  */
 
 #include "utils.h"

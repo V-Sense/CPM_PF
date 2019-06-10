@@ -27,12 +27,12 @@ corresponding to one match per line.
 #define _CPM_H_
 
 #include "include/ImagePyramid.h"
-#include "globals.h"
+#include "cpmpf_parameters.h"
 
 class CPM
 {
 public:
-    CPM(cpm_pf_params_t &cpm_pf_params);
+    CPM(cpmpf_parameters &cpm_pf_params);
 	~CPM();
 
 	int Matching(FImage& img1, FImage& img2, FImage& outMatches);

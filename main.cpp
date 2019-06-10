@@ -1,8 +1,21 @@
+/**
+ * ORIGINAL RELEASE November 2018
+ * Author:   Yang Chen
+ * Contact:  cheny5@scss.tcd.ie 
+ * Institution:  V-SENSE, School of Computer Science, Trinity College Dublin
+  * 
+ * UPDATED June 2019
+ * Author:   Martin Alain
+ * Contact:  alainm@scss.tcd.ie 
+ * Institution:  V-SENSE, School of Computer Science, Trinity College Dublin
+ */
+
 #include "CPM/CPM.h"
 #include "CPM/OpticFlowIO.h"
 #include "PFilter/PermeabilityFilter.h"
 #include "flowIO.h"
 #include "utils.h"
+#include "cpmpf_parameters.h"
 extern "C" {
 #include "Variational_refinement/variational.h"
 }
@@ -10,33 +23,95 @@ extern "C" {
 
 void Usage()
 {
-    cout<< "Example use of CPM_PF" << endl
+    std::cout<< "Example use of CPM_PF" << endl
         << "C++ implementation." << endl
         << endl
         << "Usage:" << endl
         << "  ./CPMPF <input_image_folder> <img_pre> <img_suf> <img_ext> <start_idx> <nb_imgs> <ang_dir> <CPM_match_folder> <CPMPF_flow_folder> <refined_CPMPF_flow_folder> [options]" << endl
-        << "options:" << endl
-        << "    -h help                                     print this message" << endl
+        << "Options:" << endl
+        << "    -h, -help                                  print this message" << endl
         << "  CPM parameters:" << endl
-        << "    -m, -max                                    outlier handling maxdisplacement threshold" << endl
-        << "    -t, -th                                     forward and backward consistency threshold" << endl
-        << "    -c, -cth                                    matching cost check threshold" <<endl
-        << "    -s, -stereo                                 stereo flag" <<endl
-        << "    -r, -step                                   step giving the final result resolution" <<endl
+        << "    -CPM_max                                   outlier handling maxdisplacement threshold" << endl
+        << "    -CPM_fbth                                  forward and backward consistency threshold" << endl
+        << "    -CPM_cth                                   matching cost check threshold" <<endl
+        << "    -CPM_stereo                                stereo flag" <<endl
+        << "    -CPM_nstep                                 number of step giving the final result resolution" <<endl
         << "  PF parameters:" << endl
-        << "    -i, -iter                                   number of iterantions for spatial permeability filter" << endl
-        << "    -l, -lambda                                 lambda para for spatial permeability filter" << endl
-        << "    -d, -delta                                  delta para for spatial permeability filter" << endl
-        << "    -a, -alpha                                  alpha para for spatial permeability filter" << endl
-        << "  predefined parameters:" << endl
-        << "    -sintel                                     set the parameters to the one optimized on (a subset of) the MPI-Sintel dataset" << endl
-        << "    -hcilf                                      set the parameters to the one optimized on (a subset of) the HCI light field dataset" << endl
+        << "    -PF_iter                                   number of iterantions for spatial permeability filter" << endl
+        << "    -PF_lambda                                 lambda para for spatial permeability filter" << endl
+        << "    -PF_delta                                  delta para for spatial permeability filter" << endl
+        << "    -PF_alpha                                  alpha para for spatial permeability filter" << endl
+        << "  Predefined parameters:" << endl
+        << "    -Sintel                                    set the parameters to the one optimized on (a subset of) the MPI-Sintel dataset" << endl
+        << "    -HCI                                       set the parameters to the one optimized on (a subset of) the HCI light field dataset" << endl
         << endl;
+}
+
+void parse_cmd(int argc, char** argv, int current_arg, cpmpf_parameters &cpm_pf_params) {
+
+    #define isarg(key)  !strcmp(a,key)
+    
+    while(current_arg < argc){
+        const char* a = argv[current_arg++];
+        if( isarg("-h") || isarg("-help") )
+            Usage();
+        
+        // Coarse-to-fine Patchmatch parameters
+        else if( isarg("-CPM_max") )
+            cpm_pf_params.CPM_max_displacement_input_int = atoi(argv[current_arg++]);
+        else if( isarg("-CPM_fbth") )
+            cpm_pf_params.CPM_check_threshold_input_int = atoi(argv[current_arg++]);
+        else if( isarg("-CPM_cth") )
+            cpm_pf_params.CPM_cost_threshold_input_int = atoi(argv[current_arg++]);
+        else if( isarg("-CPM_stereo") )
+            cpm_pf_params.CPM_stereo_flag = atoi(argv[current_arg++]);
+        else if( isarg("-CPM_nstep") )
+            cpm_pf_params.CPM_step = atoi(argv[current_arg++]);
+        
+        // Permeability Filter parameters
+        else if( isarg("-PF_iter") )
+            cpm_pf_params.PF_iterations_input_int = atof(argv[current_arg++]);
+        else if( isarg("-PF_lambda") )
+            cpm_pf_params.PF_lambda_XY_input_float = atof(argv[current_arg++]);
+        else if( isarg("-PF_delta") )
+            cpm_pf_params.PF_delta_XY_input_float = atof(argv[current_arg++]);
+        else if( isarg("-PF_alpha") )
+            cpm_pf_params.PF_alpha_XY_input_float = atof(argv[current_arg++]);
+        
+        // Variational refinement parameters
+        else if( isarg("-PF_iter") )
+            cpm_pf_params.PF_iterations_input_int = atof(argv[current_arg++]);
+        else if( isarg("-PF_lambda") )
+            cpm_pf_params.PF_lambda_XY_input_float = atof(argv[current_arg++]);
+        else if( isarg("-PF_delta") )
+            cpm_pf_params.PF_delta_XY_input_float = atof(argv[current_arg++]);
+        else if( isarg("-PF_alpha") )
+            cpm_pf_params.PF_alpha_XY_input_float = atof(argv[current_arg++]);
+        
+        // Predefined parameters for common test datasets
+        // Video dataset for optical flow estimation
+        else if( isarg("-Sintel") )
+            cpm_pf_params.set_dataset(string("Sintel"));
+        
+        // Various light field datasets for disparity estimation
+        // Each dataset has a different disparity range with a different order of magnitude
+        else if( isarg("-HCI") )
+            cpm_pf_params.set_dataset(string("HCI"));
+        else if( isarg("-Stanford") )
+            cpm_pf_params.set_dataset(string("Stanford"));
+        else if( isarg("-TCH") ) 
+            cpm_pf_params.set_dataset(string("TCH"));
+        else {
+            fprintf(stderr, "unknown argument %s\n", a);
+            Usage();
+            exit(1);
+        }
+    }
 }
 
 int main(int argc, char** argv)
 {
-    if (argc < 5){
+    if (argc < 11){
         if (argc > 1) fprintf(stderr, "Error: not enough arguments\n");
         Usage();
         exit(1);
@@ -44,7 +119,8 @@ int main(int argc, char** argv)
 
     CTimer total_time;
 
-    // load inputs
+    /* ---------------- PARSE COMMAND LINE --------------------------- */
+    // Mandatory parameters
     int current_arg = 1;
     char* input_images_folder = argv[current_arg++];
     char* img_pre = argv[current_arg++];
@@ -53,67 +129,21 @@ int main(int argc, char** argv)
     int start_idx = atoi(argv[current_arg++]);
     int nb_imgs = atoi(argv[current_arg++]);
     char* ang_dir = argv[current_arg++];
+
+    // Intermediate results folder, default is the input folder
     char* CPM_matches_folder = argv[current_arg++];
     char* CPMPF_flows_folder = argv[current_arg++];
+
+    // Final result folder, default is the input folder
     char* refined_CPMPF_flow_folder = argv[current_arg++];
     
-    // prepare variables
-    cpm_pf_params_t cpm_pf_params;
+    // Optional parameters
+    cpmpf_parameters cpm_pf_params; // Initiates default params
+    std::cout << cpm_pf_params << std::endl;
+    parse_cmd(argc, argv, current_arg, cpm_pf_params);
+    std::cout << cpm_pf_params << std::endl;
 
-    // load options
-    #define isarg(key)  !strcmp(a,key)
-    while(current_arg < argc){
-        const char* a = argv[current_arg++];
-        if( isarg("-h") || isarg("-help") )
-            Usage();
-        else if( isarg("-m") || isarg("-max") )
-            cpm_pf_params.CPM_max_displacement_input_int = atoi(argv[current_arg++]);
-        else if( isarg("-t") || isarg("-th") )
-            cpm_pf_params.CPM_check_threshold_input_int = atoi(argv[current_arg++]);
-        else if( isarg("-c") || isarg("-cth") )
-            cpm_pf_params.CPM_cost_threshold_input_int = atoi(argv[current_arg++]);
-        else if( isarg("-s") || isarg("-stereo") )
-            cpm_pf_params.CPM_stereo_flag = atoi(argv[current_arg++]);
-        else if( isarg("-r") || isarg("-step") )
-            cpm_pf_params.CPM_step = atoi(argv[current_arg++]);
-        else if( isarg("-i") || isarg("-iter") )
-            cpm_pf_params.PF_iterations_input_int = atof(argv[current_arg++]);
-        else if( isarg("-l") || isarg("-lambda") )
-            cpm_pf_params.PF_lambda_XY_input_float = atof(argv[current_arg++]);
-        else if( isarg("-d") || isarg("-delta") )
-            cpm_pf_params.PF_delta_XY_input_float = atof(argv[current_arg++]);
-        else if( isarg("-a") || isarg("-alpha") )
-            cpm_pf_params.PF_alpha_XY_input_float = atof(argv[current_arg++]);
-        else if( isarg("-sintel") ) {
-            cpm_pf_params.CPM_max_displacement_input_int = 400;
-            cpm_pf_params.CPM_check_threshold_input_int = 1;
-            cpm_pf_params.CPM_cost_threshold_input_int = 1880;
-            cpm_pf_params.CPM_stereo_flag = 0;
-            cpm_pf_params.CPM_step = 3;
-            cpm_pf_params.PF_iterations_input_int = 5;
-            cpm_pf_params.PF_lambda_XY_input_float = 0;
-            cpm_pf_params.PF_delta_XY_input_float = 0.017;
-            cpm_pf_params.PF_alpha_XY_input_float = 2;
-        }
-        else if( isarg("-hcilf") ) {
-            cpm_pf_params.CPM_max_displacement_input_int = 4;
-            cpm_pf_params.CPM_check_threshold_input_int = 1;
-            cpm_pf_params.CPM_cost_threshold_input_int = 1880;
-            cpm_pf_params.CPM_stereo_flag = 1;
-            cpm_pf_params.CPM_step = 3;
-            cpm_pf_params.PF_iterations_input_int = 5;
-            cpm_pf_params.PF_lambda_XY_input_float = 0;
-            cpm_pf_params.PF_delta_XY_input_float = 0.017;
-            cpm_pf_params.PF_alpha_XY_input_float = 2;
-        }
-        else {
-            fprintf(stderr, "unknown argument %s", a);
-            Usage();
-            exit(1);
-        }
-    }
-
-    // prepare inputs/outputs
+    // define inputs/outputs paths
     string input_images_folder_string = input_images_folder;
     string img_pre_string = img_pre;
     string img_suf_string = img_suf;
@@ -130,7 +160,7 @@ int main(int argc, char** argv)
      
     /* ---------------- READ INPUT RBG IMAGES --------------------------- */
     CTimer CPM_input_time;
-    cout << "Reading input RGB images... " << flush;
+    std::cout << "Reading input RGB images... " << flush;
     vector<Mat3f> input_RGB_images_vec(nb_imgs);
     int width = -1 , height = -1, nch = -1;
 
@@ -143,7 +173,7 @@ int main(int argc, char** argv)
         
         Mat tmp_img = imread(input_images_folder_string + "/" + img_name);
         if ( tmp_img.empty() ) {
-            cout << input_images_name_vec[i] << " is invalid!" << endl;
+            std::cout << input_images_name_vec[i] << " is invalid!" << endl;
             continue;
         }
 
@@ -155,7 +185,7 @@ int main(int argc, char** argv)
         else
         {
             if(width != tmp_img.cols || height != tmp_img.rows || nch != tmp_img.channels()) {
-                cout << "All input images should have the same size; size of image " << input_images_name_vec[i] << " is different from previous image" << endl;
+                std::cout << "All input images should have the same size; size of image " << input_images_name_vec[i] << " is different from previous image" << endl;
                 return -1;
             }
         }
@@ -169,7 +199,7 @@ int main(int argc, char** argv)
 
     /* ---------------- RUN COARSE-TO-FINE PATCHMATCH --------------------------- */
     CTimer CPM_time;
-    cout << "Running CPM... " << flush;
+    std::cout << "Running CPM... " << flush;
     CPM cpm(cpm_pf_params);
     vector<Mat2f> cpm_flow_fwd(nb_imgs-1), cpm_flow_bwd(nb_imgs-1);
     
@@ -202,7 +232,7 @@ int main(int argc, char** argv)
 
     // Write CPM results on disk
     CTimer CPM_write_time;
-    cout << "Writing CPM results... " << flush;
+    std::cout << "Writing CPM results... " << flush;
     #pragma omp parallel for 
     for (size_t i = 0; i < nb_imgs - 1; ++i) {
         // Remove image file extension
@@ -234,7 +264,7 @@ int main(int argc, char** argv)
     /* ---------------- RUN PERMEABILITY FILTER --------------------------- */
     // spatial filter
     CTimer sPF_time;
-    cout << "Running spatial permeability filter... " << flush;
+    std::cout << "Running spatial permeability filter... " << flush;
     vector<Mat2f> pf_spatial_flow_vec(nb_imgs);
 
     for (size_t i = 0; i < nb_imgs - 1; ++i) {
@@ -318,7 +348,7 @@ int main(int argc, char** argv)
 
     // Write spatial PF results on disk
     CTimer sPF_write_time;
-    cout << "Writing spatial permeability filter results... " << flush;
+    std::cout << "Writing spatial permeability filter results... " << flush;
     #pragma omp parallel for 
     for (size_t i = 0; i < nb_imgs; ++i) {
         // Remove image file extension
@@ -347,7 +377,7 @@ int main(int argc, char** argv)
 
     // temporal filter
     CTimer tPF_time;
-    cout << "Running temporal permeability filter... " << flush;
+    std::cout << "Running temporal permeability filter... " << flush;
     Mat2f l_prev = Mat2f::zeros(height, width);
     Mat2f l_normal_prev = Mat2f::zeros(height, width);
     Mat2f It0_XYT, It1_XYT;
@@ -383,7 +413,7 @@ int main(int argc, char** argv)
 
     // Write spatial PF results on disk
     CTimer tPF_write_time;
-    cout << "Writing temporal permeability filter results... " << flush;
+    std::cout << "Writing temporal permeability filter results... " << flush;
     #pragma omp parallel for 
     for (size_t i = 0; i < nb_imgs; ++i) {
         // Remove image file extension
@@ -412,7 +442,7 @@ int main(int argc, char** argv)
 
     /* ---------------- RUN VARIATIONAL REFINEMENT  --------------------------- */
     CTimer var_time;
-    cout << "Running variational refinement... " << flush;
+    std::cout << "Running variational refinement... " << flush;
     color_image_t *im1 = color_image_new(width, height);
     color_image_t *im2 = color_image_new(width, height);
     vector<Mat2f> vr_flow_vec(nb_imgs);
@@ -430,9 +460,8 @@ int main(int argc, char** argv)
             pf_flow = pf_temporal_flow_vec[i];
         }
         
-
         variational_params_t flow_params;
-        variational_params_default(&flow_params);
+        cpm_pf_params.to_variational_params(&flow_params);
         image_t *flow_x = image_new(width, height), *flow_y = image_new(width, height);
         Mat2f2image_t_uv(pf_flow, flow_x, flow_y);
 
@@ -450,7 +479,7 @@ int main(int argc, char** argv)
 
     // Write variational refinement results on disk
     CTimer vr_write_time;
-    cout << "Writing variational refinement results... " << flush;
+    std::cout << "Writing variational refinement results... " << flush;
     #pragma omp parallel for 
     for (size_t i = 0; i < nb_imgs; ++i) {
         // Remove image file extension
@@ -458,6 +487,7 @@ int main(int argc, char** argv)
         if( i == (nb_imgs-1)) {
             img_name1 = input_images_name_vec[i];
             img_name2 = input_images_name_vec[i-1];
+            vr_flow_vec[i] = -vr_flow_vec[i]; // Forces all flows to have the same direction
         }
         else {
             img_name1 = input_images_name_vec[i];
@@ -476,7 +506,7 @@ int main(int argc, char** argv)
 
         // Convert to disparity
         vector<Mat1f> vr_flow_split;
-        split(vr_flow_vec[i], vr_flow_split);
+        cv::split(vr_flow_vec[i], vr_flow_split);
         if(ang_dir_string == "hor") {
             string disp_file = refined_CPMPF_flow_folder_string +  "DISP__" + img_name1 + "__TO__" + img_name2 + ".pfm";
             WriteFilePFM(-vr_flow_split[0], disp_file.c_str(), 1/255.0);
