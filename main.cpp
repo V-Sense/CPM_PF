@@ -23,9 +23,7 @@ extern "C" {
 
 void Usage()
 {
-    std::cout<< "Example use of CPM_PF" << endl
-        << "C++ implementation." << endl
-        << endl
+    std::cout<< endl
         << "Usage:" << endl
         << "  ./CPMPF <input_image_folder> <img_pre> <img_suf> <img_ext> <start_idx> <nb_imgs> <ang_dir> [options]" << endl
         << "Options:" << endl
