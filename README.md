@@ -33,7 +33,7 @@ Options:
 
 
 
-## Folder Structure 
+## Compilation 
 
 The code was tested to work in Linux (Ubuntu 16.04). Clone and compile this repository with:
 
