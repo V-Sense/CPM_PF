@@ -32,7 +32,6 @@ void Usage()
         << "    -img_idx_width                             length of the image index number" << endl
         << "    -img_skip                                  index number skip" << endl
         << "    -img_suf                                   suffix to add before image format extension" << endl
-        << "    -output_PF                                 set the output folder for the Permeability Filter steps (both spatial and temporal, default is <input_image_folder>" << endl
         << "  Output result folders:" << endl
         << "    -o, -output_VR                             set the final output folder (after variational refinement), default is <input_image_folder>" << endl
         << "    -save_intermediate                         use this flag to save results from CPM and PF steps, use the following flages to set the output folders" << endl

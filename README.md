@@ -10,6 +10,10 @@ If you use or adapt this code in your work (either as a stand-alone tool or as a
   ./CPMPF <input_image_folder> <img_pre> <img_suf> <img_ext> <start_idx> <nb_imgs> <ang_dir> [options]
 Options:
     -h, -help                                  print this message
+  Additional image naming options:
+    -img_idx_width                             length of the image index number
+    -img_skip                                  index number skip
+    -img_suf                                   suffix to add before image format extension
   Output result folders:
     -o, -output_VR                             set the final output folder (after variational refinement), default is <input_image_folder>
     -save_intermediate                         use this flag to save results from CPM and PF steps, use the following flages to set the output folders
