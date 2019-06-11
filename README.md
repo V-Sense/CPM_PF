@@ -39,7 +39,6 @@ Options:
     -PF_sigma_grad                             transition point of the edge-stopping function based on flow-gradient magnitude
     -PF_alpha_grad                             falloff rate of the edge-stopping function based on flow-gradient magnitude
   VR parameters:
-  VR parameters:
     -VR_alpha                                  smoothness weight
     -VR_gamma                                  gradient constancy assumption weight
     -VR_delta                                  color constancy assumption weight
