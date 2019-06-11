@@ -43,14 +43,26 @@ void Usage()
         << "    -CPM_cth                                   matching cost check threshold" <<endl
         << "    -CPM_stereo                                stereo flag" <<endl
         << "    -CPM_nstep                                 number of step giving the final result resolution" <<endl
-        << "  PF parameters:" << endl
-        << "    -PF_iter                                   number of iterantions for spatial permeability filter" << endl
-        << "    -PF_lambda                                 lambda para for spatial permeability filter" << endl
-        << "    -PF_delta                                  delta para for spatial permeability filter" << endl
-        << "    -PF_alpha                                  alpha para for spatial permeability filter" << endl
+        << "  PF:" << endl
+        << "    Spatial parameters:" << endl
+        << "    -PF_iter                                   number of iterations" << endl
+        << "    -PF_lambda                                 lagrangian factor to balance fidelity to the input data" << endl
+        << "    -PF_delta                                  transition point of the edge-stopping function" << endl
+        << "    -PF_alpha                                  falloff rate of the edge-stopping function" << endl
+        << "  VR parameters:" << endl
+        << "    -VR_alpha                                  smoothness weight" << endl
+        << "    -VR_gamma                                  gradient constancy assumption weight" << endl
+        << "    -VR_delta                                  color constancy assumption weight" << endl
+        << "    -VR_sigma                                  presmoothing of the images" << endl
+        << "    -VR_niter_outer                            number of outer fixed point iterations" << endl
+        << "    -VR_niter_inner                            number of inner fixed point iterations" << endl
+        << "    -VR_niter_solver                           number of solver iterations " << endl
+        << "    -VR_sor_omega                              omega parameter of sor method" << endl
         << "  Predefined parameters:" << endl
-        << "    -Sintel                                    set the parameters to the one optimized on (a subset of) the MPI-Sintel dataset" << endl
-        << "    -HCI                                       set the parameters to the one optimized on (a subset of) the HCI light field dataset" << endl
+        << "    -Sintel                                    parameters for the MPI-Sintel dataset" << endl
+        << "    -HCI                                       parameters for the HCI synthetic light field dataset" << endl
+        << "    -Stanford                                  parameters for the Stanford gantry light field dataset" << endl
+        << "    -TCH                                       parameters for the Technicolor camera array light field dataset" << endl
         << endl;
 }
 
@@ -86,14 +98,23 @@ void parse_cmd(int argc, char** argv, int current_arg, cpmpf_parameters &cpm_pf_
             cpm_pf_params.PF_alpha_XY_input_float = atof(argv[current_arg++]);
         
         // Variational refinement parameters
-        else if( isarg("-PF_iter") )
-            cpm_pf_params.PF_iterations_input_int = atof(argv[current_arg++]);
-        else if( isarg("-PF_lambda") )
-            cpm_pf_params.PF_lambda_XY_input_float = atof(argv[current_arg++]);
-        else if( isarg("-PF_delta") )
-            cpm_pf_params.PF_delta_XY_input_float = atof(argv[current_arg++]);
-        else if( isarg("-PF_alpha") )
-            cpm_pf_params.PF_alpha_XY_input_float = atof(argv[current_arg++]);
+        else if( isarg("-VR_alpha") )
+            cpm_pf_params.VR_alpha = atof(argv[current_arg++]);
+        else if( isarg("-VR_gamma") )
+            cpm_pf_params.VR_gamma = atof(argv[current_arg++]);
+        else if( isarg("-VR_delta") )
+            cpm_pf_params.VR_delta = atof(argv[current_arg++]);
+        else if( isarg("-VR_sigma") )
+            cpm_pf_params.VR_sigma = atof(argv[current_arg++]);
+        else if( isarg("-VR_niter_outer") )
+            cpm_pf_params.VR_niter_outer = atof(argv[current_arg++]);
+        else if( isarg("-VR_niter_inner") )
+            cpm_pf_params.VR_niter_inner = atof(argv[current_arg++]);
+        else if( isarg("-VR_niter_solver") )
+            cpm_pf_params.VR_niter_solver = atof(argv[current_arg++]);
+        else if( isarg("-VR_sor_omega") )
+            cpm_pf_params.VR_sor_omega = atof(argv[current_arg++]);
+
         
         // Predefined parameters for common test datasets
         // Video dataset for optical flow estimation

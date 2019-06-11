@@ -146,7 +146,7 @@ Mat1f computeSpatialPermeability(Mat_<TSrc> src, float delta_XY, float alpha_XY)
     Mat warp_mat = (Mat_<double>(2,3) <<1,0,-1, 0,1,0);
     warpAffine(I, I_shifted, warp_mat, I_shifted.size()); // could also use rect() to translate image
 
-    // Equation 3.2 in Michel's Paper
+    // Equation (2) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
     Mat_<TSrc> diff_perm = Mat_<TSrc>::zeros(h,w);
     diff_perm = I - I_shifted; // Ip - Ip' with 3 channels
     std::vector<Mat1f> diff_channels(num_channels);
@@ -166,7 +166,8 @@ Mat1f computeSpatialPermeability(Mat_<TSrc> src, float delta_XY, float alpha_XY)
     Mat1f result = Mat1f::zeros(h,w); // finish the rest of the equation and return permeability map stored in "result"
     result = abs(dJdx / (sqrt(3) * delta_XY) );
     pow(result, alpha_XY, result);
-    pow(1 + result, -1, result);
+    // pow(1 + result, -1, result);
+    result = 1 / (1 + result);
     
     return result;
 }
@@ -204,7 +205,7 @@ Mat1f filterXY(const Mat_<TSrc> I, const Mat1f J, const cpmpf_parameters &cpm_pf
 
     for (int i = 0; i < iterations; ++i) {
         // spatial filtering
-        // Equation 3.7~3.9 in Michel's thesis (lambda is 0 for flow map)
+        // Equation (5) and (6) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
 
         // horizontal
         Mat1f J_XY_upper_h = Mat1f::zeros(h,w); //upper means upper of fractional number
@@ -300,7 +301,7 @@ Mat_<TValue> filterXY(const Mat_<TSrc> I, const Mat_<TValue> J, const cpmpf_para
 
     for (int i = 0; i < iterations; ++i) {
         // spatial filtering
-        // Equation 3.7~3.9 in Michel's thesis (lambda is 0 for flow map)
+        // Equation (5) and (6) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
 
         // horizontal
         Mat_<TValue> J_XY_upper_h = Mat_<TValue>::zeros(h,w); //upper means upper of fractional number
@@ -417,7 +418,7 @@ Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, c
     // imwrite("original_image" + oss.str() + ".png", I_org);
     // imwrite("warp_image" + oss.str() + ".png", I_warp);
 
-    // Equation 11
+    // Equation (11) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
     Mat_<TSrc> diff_I = I - I_prev_warped;
     std::vector<Mat1f> diff_I_channels(num_channels);
     split(diff_I, diff_I_channels);
@@ -431,12 +432,13 @@ Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, c
     }
     sqrt(sum_diff_I, sum_diff_I);
     pow(abs(sum_diff_I / (sqrt(3) * delta_photo)), alpha_photo, perm_photo);
-    pow(1 + perm_photo, -1, perm_photo);
+    // pow(1 + perm_photo, -1, perm_photo);
+    perm_photo = 1 / (1 + perm_photo);
 
     Mat2f flow_prev_XYT_warped  = Mat2f::zeros(h,w);;
     // remap(flow_prev_XYT, flow_prev_XYT_warped, prev_maps[0], prev_maps[1], cv::INTER_CUBIC);
     remap(flow_prev_XYT, flow_prev_XYT_warped, map_x, map_y, cv::INTER_CUBIC);
-    // Equation 12
+    // Equation (12) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
     Mat2f diff_flow = flow_XY - flow_prev_XYT_warped;
     std::vector<Mat1f> diff_flow_channels(num_channels_flow);
     split(diff_flow, diff_flow_channels);
@@ -450,7 +452,8 @@ Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, c
     }
     sqrt(sum_diff_flow, sum_diff_flow);
     pow(abs(sum_diff_flow / (sqrt(2) * delta_grad)), alpha_grad, perm_gradient);
-    pow(1 + perm_gradient, -1, perm_gradient);
+    // pow(1 + perm_gradient, -1, perm_gradient);
+    perm_gradient = 1 / (1 + perm_gradient);
 
     Mat perm_temporalMat = perm_photo.mul(perm_gradient);
     perm_temporalMat.convertTo(perm_temporal, CV_32FC1);
@@ -514,14 +517,11 @@ vector<Mat_<TValue> > filterT(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, const
         split(prev_map, flow_XYT_prev_maps);
 
         // temporal filtering
-        // Equation 3.7~3.9 in Michel's thesis (lambda is 0 for flow map)
-
-        // horizontal
         Mat_<TValue> l_t = Mat_<TValue>::zeros(h, w);
         Mat_<TValue> l_t_normal = Mat_<TValue>::zeros(h, w);
         
         // no need to do pixel-wise operation (via J(y,x)) since all operation is based on same location pixels
-        // (left pass) forward pass & combining
+        // forward pass & combining
         Mat_<TValue> temp_l_t_prev = Mat_<TValue>::zeros(h, w);
         Mat_<TValue> temp_l_t_prev_warped = Mat_<TValue>::zeros(h, w);
         for (int y = 0; y < h; y++) {
