@@ -28,6 +28,21 @@ cpmpf_parameters::cpmpf_parameters() {
     write_intermediate_results = false;
 }
 
+cpmpf_parameters::cpmpf_parameters(std::string dataset_name) {
+    // Set default parameters
+    set_dataset(dataset_name);
+
+    img_idx_width = 4;
+    img_skip = 1;
+    img_suf = "";
+
+    // Set output directories to local directory
+    output_CPM_dir = std::string("./");
+    output_PF_dir  = std::string("./");
+    output_VR_dir  = std::string("./");
+    write_intermediate_results = false;
+}
+
 // Operators overloading
 // For debug purpose mostly
 std::ostream& operator<< (std::ostream& os, cpmpf_parameters& cpmpf_param)

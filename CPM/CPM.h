@@ -27,7 +27,7 @@ corresponding to one match per line.
 #define _CPM_H_
 
 #include "include/ImagePyramid.h"
-#include "cpmpf_parameters.h"
+#include "Mains/cpmpf_parameters.h"
 
 class CPM
 {

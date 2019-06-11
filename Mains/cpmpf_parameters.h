@@ -69,7 +69,8 @@ public:
     /* Public Methods */
 	// Constructor
     cpmpf_parameters();
-
+    cpmpf_parameters(std::string dataset_name);
+    
     // Operator overloading
 	friend std::ostream& operator<< (std::ostream& os, cpmpf_parameters& cpmpf_param); // For debug purpose mostly
 

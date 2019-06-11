@@ -14,13 +14,6 @@ FIND_PACKAGE(OpenCV REQUIRED)
 FIND_PACKAGE(LAPACK REQUIRED)
 FIND_PACKAGE(OpenMP REQUIRED)
 
-file(GLOB SOURCES     "*.c" "*.cpp")
-file(GLOB headers_hpp "*.hpp")
-file(GLOB headers_h   "*.h")
-list(APPEND HEADERS ${headers_h} ${headers_hpp})
-
-ADD_EXECUTABLE(${PROJECT_NAME} ${SOURCES} ${HEADERS})
-
 INCLUDE_DIRECTORIES(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CPM_SOURCE_DIR}
@@ -29,14 +22,7 @@ INCLUDE_DIRECTORIES(
     ${OpenCV_INCLUDE_DIRS}
 )
 
-TARGET_LINK_LIBRARIES(${PROJECT_NAME}
-    ${OpenMP_CXX_LIBRARIES}
-    ${OpenCV_LIBS}
-    CPM
-    PFilter
-    Variational_refinement
-)
-
 ADD_SUBDIRECTORY(CPM)
 ADD_SUBDIRECTORY(PFilter)
 ADD_SUBDIRECTORY(Variational_refinement)
+ADD_SUBDIRECTORY(Mains)
