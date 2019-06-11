@@ -45,10 +45,17 @@ void Usage()
         << "    -CPM_nstep                                 number of step giving the final result resolution" <<endl
         << "  PF:" << endl
         << "    Spatial parameters:" << endl
-        << "    -PF_iter                                   number of iterations" << endl
-        << "    -PF_lambda                                 lagrangian factor to balance fidelity to the input data" << endl
-        << "    -PF_delta                                  transition point of the edge-stopping function" << endl
-        << "    -PF_alpha                                  falloff rate of the edge-stopping function" << endl
+        << "    -PF_iter_XY                                number of iterations" << endl
+        << "    -PF_lambda_XY                              lagrangian factor to balance fidelity to the input data" << endl
+        << "    -PF_sigma_XY                               transition point of the edge-stopping function" << endl
+        << "    -PF_alpha_XY                               falloff rate of the edge-stopping function" << endl
+        << "    Temporal parameters:" << endl
+        << "    -PF_iter_T                                 number of iterations" << endl
+        << "    -PF_lambda_T                               lagrangian factor to balance fidelity to the input data" << endl
+        << "    -PF_sigma_photo                            transition point of the edge-stopping function based on color consistency" << endl
+        << "    -PF_alpha_photo                            falloff rate of the edge-stopping function based on color consistency" << endl
+        << "    -PF_sigma_grad                             transition point of the edge-stopping function based on flow-gradient magnitude" << endl
+        << "    -PF_alpha_grad                             falloff rate of the edge-stopping function based on flow-gradient magnitude" << endl
         << "  VR parameters:" << endl
         << "    -VR_alpha                                  smoothness weight" << endl
         << "    -VR_gamma                                  gradient constancy assumption weight" << endl
@@ -87,16 +94,30 @@ void parse_cmd(int argc, char** argv, int current_arg, cpmpf_parameters &cpm_pf_
         else if( isarg("-CPM_nstep") )
             cpm_pf_params.CPM_step = atoi(argv[current_arg++]);
         
-        // Permeability Filter parameters
-        else if( isarg("-PF_iter") )
-            cpm_pf_params.PF_iterations_input_int = atof(argv[current_arg++]);
-        else if( isarg("-PF_lambda") )
-            cpm_pf_params.PF_lambda_XY_input_float = atof(argv[current_arg++]);
-        else if( isarg("-PF_delta") )
-            cpm_pf_params.PF_delta_XY_input_float = atof(argv[current_arg++]);
-        else if( isarg("-PF_alpha") )
-            cpm_pf_params.PF_alpha_XY_input_float = atof(argv[current_arg++]);
-        
+        // Permeability Filter 
+        // spatial parameters
+        else if( isarg("-PF_iter_XY") )
+            cpm_pf_params.PF_iter_XY = atof(argv[current_arg++]);
+        else if( isarg("-PF_lambda_XY") )
+            cpm_pf_params.PF_lambda_XY = atof(argv[current_arg++]);
+        else if( isarg("-PF_sigma_XY") )
+            cpm_pf_params.PF_sigma_XY = atof(argv[current_arg++]);
+        else if( isarg("-PF_alpha_XY") )
+            cpm_pf_params.PF_alpha_XY = atof(argv[current_arg++]);
+        // temporal parameters
+        else if( isarg("-PF_iter_T") )
+            cpm_pf_params.PF_iter_T = atof(argv[current_arg++]);
+        else if( isarg("-PF_lambda_T") )
+            cpm_pf_params.PF_lambda_T = atof(argv[current_arg++]);
+        else if( isarg("-PF_sigma_photo") )
+            cpm_pf_params.PF_sigma_photo = atof(argv[current_arg++]);
+        else if( isarg("-PF_sigma_grad") )
+            cpm_pf_params.PF_sigma_grad = atof(argv[current_arg++]);
+        else if( isarg("-PF_alpha_photo") )
+            cpm_pf_params.PF_alpha_photo = atof(argv[current_arg++]);
+        else if( isarg("-PF_alpha_grad") )
+            cpm_pf_params.PF_alpha_grad = atof(argv[current_arg++]);
+
         // Variational refinement parameters
         else if( isarg("-VR_alpha") )
             cpm_pf_params.VR_alpha = atof(argv[current_arg++]);
@@ -189,7 +210,6 @@ int main(int argc, char** argv)
     
     // Optional parameters
     parse_cmd(argc, argv, current_arg, cpm_pf_params);
-    
 
     vector<string> input_images_name_vec(nb_imgs);
 
@@ -437,10 +457,10 @@ int main(int argc, char** argv)
         Mat2f It1_XY = pf_spatial_flow_vec[i];
 
         if(i == 1) {
-            It1_XYT_vector = filterT<Vec3f, Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XY,  l_prev, l_normal_prev);
+            It1_XYT_vector = filterT<Vec3f, Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XY,  l_prev, l_normal_prev, cpm_pf_params);
         }
         else {
-            It1_XYT_vector = filterT<Vec3f, Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XYT, l_prev, l_normal_prev);
+            It1_XYT_vector = filterT<Vec3f, Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XYT, l_prev, l_normal_prev, cpm_pf_params);
         }
 
         It1_XYT = It1_XYT_vector[2];

@@ -134,7 +134,7 @@ inline Mat1f getFlowConfidence(Mat2f forward_flow, Mat2f backward_flow)
 
 
 template <class TSrc>
-Mat1f computeSpatialPermeability(Mat_<TSrc> src, float delta_XY, float alpha_XY)
+Mat1f computeSpatialPermeability(Mat_<TSrc> src, float sigma_XY, float alpha_XY)
 {
     Mat_<TSrc> I = src;
     int h = I.rows;
@@ -164,7 +164,7 @@ Mat1f computeSpatialPermeability(Mat_<TSrc> src, float delta_XY, float alpha_XY)
     sqrt(dJdx, dJdx);
     
     Mat1f result = Mat1f::zeros(h,w); // finish the rest of the equation and return permeability map stored in "result"
-    result = abs(dJdx / (sqrt(3) * delta_XY) );
+    result = abs(dJdx / (sqrt(3) * sigma_XY) );
     pow(result, alpha_XY, result);
     // pow(1 + result, -1, result);
     result = 1 / (1 + result);
@@ -181,11 +181,11 @@ Mat1f filterXY(const Mat_<TSrc> I, const Mat1f J, const cpmpf_parameters &cpm_pf
     int h = I.rows;
     int w = I.cols;
 
-    // initializations (move outside later)
-    float iterations = cpm_pf_params.PF_iterations_input_int;
-    int lambda_XY = cpm_pf_params.PF_lambda_XY_input_float;
-    float delta_XY = cpm_pf_params.PF_delta_XY_input_float;
-    float alpha_XY = cpm_pf_params.PF_alpha_XY_input_float;
+    // filter parameters
+    float iterations = cpm_pf_params.PF_iter_XY;
+    int lambda_XY = cpm_pf_params.PF_lambda_XY;
+    float sigma_XY = cpm_pf_params.PF_sigma_XY;
+    float alpha_XY = cpm_pf_params.PF_alpha_XY;
 
     // spatial filtering
     Mat1f J_XY;
@@ -196,11 +196,11 @@ Mat1f filterXY(const Mat_<TSrc> I, const Mat1f J, const cpmpf_parameters &cpm_pf
     //compute horizontal filtered image
     Mat1f perm_horizontal;
     Mat1f perm_vertical;
-    perm_horizontal = computeSpatialPermeability<TSrc>(I, delta_XY, alpha_XY);
+    perm_horizontal = computeSpatialPermeability<TSrc>(I, sigma_XY, alpha_XY);
 
     //compute vertical filtered image
     Mat_<TSrc> I_t = I.t();
-    perm_vertical = computeSpatialPermeability<TSrc>(I_t, delta_XY, alpha_XY);
+    perm_vertical = computeSpatialPermeability<TSrc>(I_t, sigma_XY, alpha_XY);
     perm_vertical = perm_vertical.t();
 
     for (int i = 0; i < iterations; ++i) {
@@ -275,11 +275,11 @@ Mat_<TValue> filterXY(const Mat_<TSrc> I, const Mat_<TValue> J, const cpmpf_para
     int h = I.rows;
     int w = I.cols;
 
-    // initializations (move outside later)
-    float iterations = cpm_pf_params.PF_iterations_input_int;
-    int lambda_XY = cpm_pf_params.PF_lambda_XY_input_float;
-    float delta_XY = cpm_pf_params.PF_delta_XY_input_float;
-    float alpha_XY = cpm_pf_params.PF_alpha_XY_input_float;
+    // filter parameters
+    float iterations = cpm_pf_params.PF_iter_XY;
+    int lambda_XY = cpm_pf_params.PF_lambda_XY;
+    float sigma_XY = cpm_pf_params.PF_sigma_XY;
+    float alpha_XY = cpm_pf_params.PF_alpha_XY;
 
     // spatial filtering
     int num_chs = J.channels();
@@ -292,11 +292,11 @@ Mat_<TValue> filterXY(const Mat_<TSrc> I, const Mat_<TValue> J, const cpmpf_para
     //compute horizontal filtered image
     Mat1f perm_horizontal;
     Mat1f perm_vertical;
-    perm_horizontal = computeSpatialPermeability<TSrc>(I, delta_XY, alpha_XY);
+    perm_horizontal = computeSpatialPermeability<TSrc>(I, sigma_XY, alpha_XY);
 
     //compute vertical filtered image
     Mat_<TSrc> I_t = I.t();
-    perm_vertical = computeSpatialPermeability<TSrc>(I_t, delta_XY, alpha_XY);
+    perm_vertical = computeSpatialPermeability<TSrc>(I_t, sigma_XY, alpha_XY);
     perm_vertical = perm_vertical.t();
 
     for (int i = 0; i < iterations; ++i) {
@@ -368,7 +368,7 @@ Mat_<TValue> filterXY(const Mat_<TSrc> I, const Mat_<TValue> J, const cpmpf_para
 
 
 template <class TSrc>
-Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, const Mat2f flow_XY, const Mat2f flow_prev_XYT, const float delta_photo, const float delta_grad, const float alpha_photo, const float alpha_grad)
+Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, const Mat2f flow_XY, const Mat2f flow_prev_XYT, const float sigma_photo, const float sigma_grad, const float alpha_photo, const float alpha_grad)
 {
     int h = I.rows;
     int w = I.cols;
@@ -431,7 +431,7 @@ Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, c
         sum_diff_I = sum_diff_I + temp;
     }
     sqrt(sum_diff_I, sum_diff_I);
-    pow(abs(sum_diff_I / (sqrt(3) * delta_photo)), alpha_photo, perm_photo);
+    pow(abs(sum_diff_I / (sqrt(3) * sigma_photo)), alpha_photo, perm_photo);
     // pow(1 + perm_photo, -1, perm_photo);
     perm_photo = 1 / (1 + perm_photo);
 
@@ -451,7 +451,7 @@ Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, c
         sum_diff_flow = sum_diff_flow + temp;
     }
     sqrt(sum_diff_flow, sum_diff_flow);
-    pow(abs(sum_diff_flow / (sqrt(2) * delta_grad)), alpha_grad, perm_gradient);
+    pow(abs(sum_diff_flow / (sqrt(2) * sigma_grad)), alpha_grad, perm_gradient);
     // pow(1 + perm_gradient, -1, perm_gradient);
     perm_gradient = 1 / (1 + perm_gradient);
 
@@ -462,7 +462,11 @@ Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, c
 }
 
 template <class TSrc, class TValue>
-vector<Mat_<TValue> > filterT(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, const Mat_<TValue> J_XY, const Mat_<TValue> J_prev_XY, const Mat2f flow_XY, const Mat2f flow_prev_XYT, const Mat_<TValue> l_t_prev, const Mat_<TValue> l_t_normal_prev)
+vector<Mat_<TValue> > filterT(  const Mat_<TSrc> I, const Mat_<TSrc> I_prev, 
+                                const Mat_<TValue> J_XY, const Mat_<TValue> J_prev_XY,
+                                const Mat2f flow_XY, const Mat2f flow_prev_XYT,
+                                const Mat_<TValue> l_t_prev, const Mat_<TValue> l_t_normal_prev,
+                                const cpmpf_parameters &cpm_pf_params)
 {
     //store result variable
     vector<Mat_<TValue> > result;
@@ -486,20 +490,18 @@ vector<Mat_<TValue> > filterT(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, const
     Mat_<TValue> J_XYT;
     J_XY.copyTo(J_XYT);
 
-    // Initialization parameters
-    float lambda_T = 0;
-    float delta_photo = 0.3;
-    float delta_grad = 1.0;
-    float alpha_photo = 2.0;
-    float alpha_grad = 2.0;
-
+    // filter parameters
+    int iterations = cpm_pf_params.PF_iter_T;
+    float lambda_T = cpm_pf_params.PF_lambda_T;
+    float sigma_photo = cpm_pf_params.PF_sigma_photo;
+    float sigma_grad = cpm_pf_params.PF_sigma_grad;
+    float alpha_photo = cpm_pf_params.PF_alpha_photo;
+    float alpha_grad = cpm_pf_params.PF_alpha_grad;
+    
     // temporal filtering
-    int iterations = 1;
-
-
     //compute temporal permeability in this iteration
     Mat1f perm_temporal;
-    perm_temporal = computeTemporalPermeability<TSrc>(I, I_prev, flow_XY, flow_prev_XYT, delta_photo, delta_grad, alpha_photo, alpha_grad);
+    perm_temporal = computeTemporalPermeability<TSrc>(I, I_prev, flow_XY, flow_prev_XYT, sigma_photo, sigma_grad, alpha_photo, alpha_grad);
 
 
     for (int i = 0; i < iterations; ++i)

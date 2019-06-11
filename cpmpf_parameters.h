@@ -41,11 +41,20 @@ public:
     int CPM_stereo_flag;
     int CPM_step;
 
-    // Permeability filter parameters
-    int PF_iterations_input_int;
-    float PF_lambda_XY_input_float;
-    float PF_delta_XY_input_float;
-    float PF_alpha_XY_input_float;
+    // Permeability filter 
+    // spatial parameters
+    int PF_iter_XY;
+    float PF_lambda_XY;
+    float PF_sigma_XY;
+    float PF_alpha_XY;
+
+    // temporal parameters
+    int PF_iter_T;
+    float PF_lambda_T;
+    float PF_sigma_photo;
+    float PF_sigma_grad;
+    float PF_alpha_photo;
+    float PF_alpha_grad;
 
     // Variational refinement parameters
     float VR_alpha;

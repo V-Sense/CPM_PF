@@ -27,10 +27,18 @@ Options:
     -CPM_nstep                                 number of step giving the final result resolution
   PF:
     Spatial parameters:
-    -PF_iter                                   number of iterations
-    -PF_lambda                                 lagrangian factor to balance fidelity to the input data
-    -PF_delta                                  transition point of the edge-stopping function
-    -PF_alpha                                  falloff rate of the edge-stopping function
+    -PF_iter_XY                                number of iterations
+    -PF_lambda_XY                              lagrangian factor to balance fidelity to the input data
+    -PF_sigma_XY                               transition point of the edge-stopping function
+    -PF_alpha_XY                               falloff rate of the edge-stopping function
+    Temporal parameters:
+    -PF_iter_T                                 number of iterations
+    -PF_lambda_T                               lagrangian factor to balance fidelity to the input data
+    -PF_sigma_photo                            transition point of the edge-stopping function based on color consistency
+    -PF_alpha_photo                            falloff rate of the edge-stopping function based on color consistency
+    -PF_sigma_grad                             transition point of the edge-stopping function based on flow-gradient magnitude
+    -PF_alpha_grad                             falloff rate of the edge-stopping function based on flow-gradient magnitude
+  VR parameters:
   VR parameters:
     -VR_alpha                                  smoothness weight
     -VR_gamma                                  gradient constancy assumption weight
