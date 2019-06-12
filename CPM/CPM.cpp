@@ -8,14 +8,12 @@
 
 #define UNKNOWN_FLOW 1e10
 
-CPM::CPM(cpmpf_parameters &cpm_pf_params)
+CPM::CPM()
 {
 	// default parameters
-	// _step = 3;
-	// _isStereo = false;
-	_step = cpm_pf_params.CPM_step;
-	_isStereo = cpm_pf_params.CPM_stereo_flag;
-
+	_step = 3;
+	_isStereo = false;
+	
     _maxIters = 8; //CPM official origin
     //_maxIters = 6; //CPM modify in tip2017 #tipModification
 	_stopIterRatio = 0.05;
@@ -24,18 +22,14 @@ CPM::CPM(cpmpf_parameters &cpm_pf_params)
     _maxDisplacement = 400; //CPM official origin
     //_maxDisplacement = 88; //CPM modify in tip2017 #tipModification
     //_maxDisplacement = 5; //LF modification
-    _maxDisplacement = cpm_pf_params.CPM_max_displacement_input_int;
-
+    
     //_checkThreshold = 3; //CPM official origin
-    //_checkThreshold = 1; //CPM modify in tip2017 #tipModification
-    _checkThreshold = cpm_pf_params.CPM_check_threshold_input_int;
-
+    _checkThreshold = 1; //CPM modify in tip2017 #tipModification
+    
     _borderWidth = 5;
 
-    //_costCheckThreshold = 1000; //CPM modify in tip2017 #tipModification
-    _costCheckThreshold = cpm_pf_params.CPM_cost_threshold_input_int;
-
-
+    _costCheckThreshold = 1000; //CPM modify in tip2017 #tipModification
+    
 	_im1f = NULL;
 	_im2f = NULL;
 	_pydSeedsFlow = NULL;
@@ -62,6 +56,16 @@ void CPM::SetStereoFlag(int needStereo)
 void CPM::SetStep(int step)
 {
 	_step = step;
+}
+
+void CPM::SetMaxDisplacement(int maxDisplacement)
+{
+	_maxDisplacement = maxDisplacement;
+}
+
+void CPM::SetCheckThreshold(float checkThreshold)
+{
+	_checkThreshold = checkThreshold;
 }
 
 int CPM::Matching(FImage& img1, FImage& img2, FImage& outMatches)

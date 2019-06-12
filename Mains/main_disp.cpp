@@ -83,11 +83,11 @@ void parse_cmd(int argc, char** argv, int current_arg, cpmpf_parameters &cpm_pf_
         
         // Coarse-to-fine Patchmatch parameters
         else if( isarg("-CPM_max") )
-            cpm_pf_params.CPM_max_displacement_input_int = atoi(argv[current_arg++]);
+            cpm_pf_params.CPM_max_displacement = atoi(argv[current_arg++]);
         else if( isarg("-CPM_fbth") )
-            cpm_pf_params.CPM_check_threshold_input_int = atoi(argv[current_arg++]);
+            cpm_pf_params.CPM_check_threshold = atoi(argv[current_arg++]);
         else if( isarg("-CPM_cth") )
-            cpm_pf_params.CPM_cost_threshold_input_int = atoi(argv[current_arg++]);
+            cpm_pf_params.CPM_cost_threshold = atoi(argv[current_arg++]);
         else if( isarg("-CPM_stereo") )
             cpm_pf_params.CPM_stereo_flag = atoi(argv[current_arg++]);
         else if( isarg("-CPM_nstep") )
@@ -258,7 +258,10 @@ int main(int argc, char** argv)
     /* ---------------- RUN COARSE-TO-FINE PATCHMATCH --------------------------- */
     CTimer CPM_time;
     std::cout << "Running CPM... " << flush;
-    CPM cpm(cpm_pf_params);
+    
+    CPM cpm;
+    cpm_pf_params.to_CPM_params(cpm);
+
     vector<Mat2f> cpm_flow_fwd(nb_imgs-1), cpm_flow_bwd(nb_imgs-1);
     
     #pragma omp parallel for 

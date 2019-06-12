@@ -17,6 +17,7 @@
 #include <string.h>
 #include <iostream>
 #include <fstream>
+#include "CPM/CPM.h"
 #include "Variational_refinement/variational.h"
 
 class cpmpf_parameters
@@ -35,9 +36,9 @@ public:
     std::string img_suf;
 
     // CPM parameters
-    int CPM_max_displacement_input_int;
-    int CPM_check_threshold_input_int;
-    int CPM_cost_threshold_input_int;
+    int CPM_max_displacement;
+    float CPM_check_threshold;
+    int CPM_cost_threshold;
     int CPM_stereo_flag;
     int CPM_step;
 
@@ -76,7 +77,8 @@ public:
 
     void set_dataset(std::string dataset_name);
 
-    // Conversion to variational parameters
+    // Conversion to specific steps parameters
+    void to_CPM_params(CPM &cpm);
     void to_variational_params(variational_params_t *v_params);
 };
 

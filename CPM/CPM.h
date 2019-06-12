@@ -27,17 +27,18 @@ corresponding to one match per line.
 #define _CPM_H_
 
 #include "include/ImagePyramid.h"
-#include "Mains/cpmpf_parameters.h"
 
 class CPM
 {
 public:
-    CPM(cpmpf_parameters &cpm_pf_params);
+    CPM();
 	~CPM();
 
 	int Matching(FImage& img1, FImage& img2, FImage& outMatches);
 	void SetStereoFlag(int needStereo);
 	void SetStep(int step);
+	void SetMaxDisplacement(int maxDisplacement);
+	void SetCheckThreshold(float checkThreshold);
 
 private:
 	void imDaisy(FImage& img, UCImage& outFtImg);

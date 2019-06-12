@@ -48,8 +48,8 @@ cpmpf_parameters::cpmpf_parameters(std::string dataset_name) {
 std::ostream& operator<< (std::ostream& os, cpmpf_parameters& cpmpf_param)
 {
 	os << std::endl << "[CPMPF parameters]" << std::endl;
-	os << "CPM_max_displacement_input_int: "    << cpmpf_param.CPM_max_displacement_input_int << std::endl;
-	os << "CPM_check_threshold_input_int: "     << cpmpf_param.CPM_check_threshold_input_int << std::endl;
+	os << "CPM_max_displacement: "    << cpmpf_param.CPM_max_displacement << std::endl;
+	os << "CPM_check_threshold: "     << cpmpf_param.CPM_check_threshold << std::endl;
 	os << "CPM_stereo_flag: "                   << cpmpf_param.CPM_stereo_flag << std::endl;
 	os << "CPM_step: "                          << cpmpf_param.CPM_step << std::endl;
 	
@@ -74,9 +74,9 @@ std::ostream& operator<< (std::ostream& os, cpmpf_parameters& cpmpf_param)
 void cpmpf_parameters::set_dataset(std::string dataset_name) {
     
     // First init with default parameters used for Sintel dataset
-    CPM_max_displacement_input_int = 400;
-    CPM_check_threshold_input_int = 1;
-    CPM_cost_threshold_input_int = 1880;
+    CPM_max_displacement = 400;
+    CPM_check_threshold = 1;
+    CPM_cost_threshold = 1880;
     CPM_stereo_flag = 0;
     CPM_step = 3;
 
@@ -103,15 +103,15 @@ void cpmpf_parameters::set_dataset(std::string dataset_name) {
     if(dataset_name == "Sintel")
     {} // Nothing to do as default parameters are defined from this dataset
     else if(dataset_name == "HCI"){
-        CPM_max_displacement_input_int = 4;
+        CPM_max_displacement = 4;
         CPM_stereo_flag = 1;
     }
     else if( dataset_name == "Stanford" ) {
-        CPM_max_displacement_input_int = 40;
+        CPM_max_displacement = 40;
         CPM_stereo_flag = 1;
     }
     else if( dataset_name == "TCH" ) {
-        CPM_max_displacement_input_int = 400;
+        CPM_max_displacement = 400;
         CPM_stereo_flag = 1;
     }
     else {
@@ -120,6 +120,13 @@ void cpmpf_parameters::set_dataset(std::string dataset_name) {
 }
 
 // Conversion to variational parameters
+void cpmpf_parameters::to_CPM_params(CPM &cpm){
+    cpm.SetStereoFlag(CPM_stereo_flag);
+	cpm.SetStep(CPM_step);
+	cpm.SetMaxDisplacement(CPM_max_displacement);
+	cpm.SetCheckThreshold(CPM_check_threshold);
+}
+
 void cpmpf_parameters::to_variational_params(variational_params_t *v_params){
     if(!v_params){
         fprintf(stderr,"Error optical_flow_params_default: argument is null\n");
