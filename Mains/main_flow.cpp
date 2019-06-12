@@ -11,14 +11,15 @@
  */
 
 #include "CPM/CPM.h"
-#include "CPM/OpticFlowIO.h"
 #include "PFilter/PermeabilityFilter.h"
-#include "flowIO.h"
-#include "utils.h"
-#include "cpmpf_parameters.h"
 extern "C" {
 #include "Variational_refinement/variational.h"
 }
+
+#include "flow.h"
+#include "utils.h"
+#include "cpmpf_parameters.h"
+
 
 
 void Usage()
@@ -320,6 +321,9 @@ int main(int argc, char** argv)
 
 
     /* ---------------- RUN PERMEABILITY FILTER --------------------------- */
+    PermeabilityFilter<Vec3f> PF;
+    cpm_pf_params.to_PF_params<Vec3f>(PF);
+
     // spatial filter
     CTimer sPF_time;
     std::cout << "Running spatial permeability filter... " << flush;
@@ -334,7 +338,7 @@ int main(int argc, char** argv)
         Mat1f flow_confidence = getFlowConfidence(flow_forward, flow_backward);
 
         // Apply spatial permeability filter on confidence
-        Mat1f flow_confidence_filtered = filterXY<Vec3f>(target_img, flow_confidence, cpm_pf_params);
+        Mat1f flow_confidence_filtered = PF.filterXY(target_img, flow_confidence);
 
 
         // multiply initial confidence and sparse flow
@@ -348,7 +352,7 @@ int main(int argc, char** argv)
         }
 
         //filter confidenced sparse flow
-        Mat2f confidenced_flow_XY = filterXY<Vec3f, Vec2f>(target_img, confidenced_flow, cpm_pf_params);
+        Mat2f confidenced_flow_XY = PF.filterXY<Vec2f>(target_img, confidenced_flow);
 
         // compute normalized spatial filtered flow FXY by division
         Mat2f normalized_confidenced_flow_filtered = Mat2f::zeros(target_img.rows,target_img.cols);
@@ -372,7 +376,7 @@ int main(int argc, char** argv)
     Mat1f flow_confidence = getFlowConfidence(flow_backward, flow_forward);
 
     // Apply spatial permeability filter on confidence
-    Mat1f flow_confidence_filtered = filterXY<Vec3f>(target_img, flow_confidence, cpm_pf_params);
+    Mat1f flow_confidence_filtered = PF.filterXY(target_img, flow_confidence);
 
 
     // multiply initial confidence and sparse flow
@@ -386,7 +390,7 @@ int main(int argc, char** argv)
     }
 
     //filter confidenced sparse flow
-    Mat2f confidenced_flow_XY = filterXY<Vec3f, Vec2f>(target_img, confidenced_flow, cpm_pf_params);
+    Mat2f confidenced_flow_XY = PF.filterXY<Vec2f>(target_img, confidenced_flow);
 
     // compute normalized spatial filtered flow FXY by division
     Mat2f normalized_confidenced_flow_filtered = Mat2f::zeros(target_img.rows,target_img.cols);
@@ -453,10 +457,10 @@ int main(int argc, char** argv)
         Mat2f It1_XY = pf_spatial_flow_vec[i];
 
         if(i == 1) {
-            It1_XYT_vector = filterT<Vec3f, Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XY,  l_prev, l_normal_prev, cpm_pf_params);
+            It1_XYT_vector = PF.filterT<Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XY,  l_prev, l_normal_prev);
         }
         else {
-            It1_XYT_vector = filterT<Vec3f, Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XYT, l_prev, l_normal_prev, cpm_pf_params);
+            It1_XYT_vector = PF.filterT<Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XYT, l_prev, l_normal_prev);
         }
 
         It1_XYT = It1_XYT_vector[2];

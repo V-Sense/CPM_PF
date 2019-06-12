@@ -29,7 +29,7 @@
 #include <stdlib.h>
 #include <math.h>
 //#include "imageLib.h"
-#include "flowIO.h"
+#include "flow.h"
 //#include <iostream>
 
 bool unknown_flow(float u, float v) {
@@ -42,6 +42,7 @@ bool unknown_flow(float *f) {
     return unknown_flow(f[0],f[1]);
 }
 
+/* ------------------------ OPTICAL FLOW INPUT / OUTPUT ----------------------- */
 // read a flow file into 2-band image
 int ReadFlowFile(cv::Mat2f& img, const char* filename)
 {
@@ -333,3 +334,92 @@ void WriteFlowAsImage(cv::Mat2f& flow, const char* imgName, float range /*= -1*/
 	cv::imwrite(imgName, img);
 }
 
+/* ------------------------ OPERATIONS ON OPTICAL FLOWS  ----------------------- */
+
+
+// Computes the normalized confidence map C between forward flow F and backward flow B
+// First, the disntance D at every position (X,Y) is computed :
+//     D(X,Y) = ||F(X,Y) - B(X + Fx(X,Y),y + Fy(X,Y))||
+// Then, normalized confidence map C is computed :
+//     C = 1 - D / max(D)
+cv::Mat1f getFlowConfidence(cv::Mat2f forward_flow, cv::Mat2f backward_flow)
+{
+    cv::Mat1f distances = cv::Mat1f(forward_flow.rows, forward_flow.cols, -1);
+
+    int h = forward_flow.rows;
+    int w = forward_flow.cols;
+    float max_distance = -1;
+
+    // Computes the distance between forward and backwards flow
+    #pragma omp parallel for
+    for(int y = 0; y < h ; ++y)
+    {
+        for(int x = 0; x < w ; ++x)
+        {
+            // If there is forward flow for the position F(x,y)
+            cv::Vec2f forward = forward_flow.at<cv::Vec2f>(y, x);
+            if(forward[0] != kFLOW_UNKNOWN[0] && forward[1] != kFLOW_UNKNOWN[1])
+            {
+                cv::Vec2i next_position = getAbsoluteFlow(x, y, forward, h, w);
+                if(next_position != kPOSITION_INVALID)
+                {
+                    // If there is backward flow for the refered position B(x + F(x,y).x,y + F(x,y).y)
+                    cv::Vec2f backward = backward_flow.at<cv::Vec2f>(next_position[0], next_position[1]);
+                    if(backward[0] != kFLOW_UNKNOWN[0] && backward[1] != kFLOW_UNKNOWN[1])
+                    {
+                        // computes the distance
+                        float distance = (float)norm(forward + backward);
+
+                        // Updates the max distance, if required
+                        if(distance > max_distance)
+                        {
+                            #pragma omp critical
+                            {
+                                if(distance > max_distance)
+                                    max_distance = distance;
+                            }
+                        }
+
+                        // Updates the distance map
+                        distances.at<float>(y, x) = distance;
+                    }
+                }
+            }
+        }
+    }
+
+    // If there is a difference between F and B
+    if(max_distance > 0)
+    {
+        // Computes the normalized confidence map
+        #pragma omp parallel for
+        for(int y = 0; y < h ; ++y)
+        {
+            for(int x = 0; x < w ; ++x)
+            {
+                
+                if(distances.at<float>(y, x) < 0)
+                {
+                    // Unknown flow, C = 0
+                    distances.at<float>(y, x) = 0;
+                    
+                }
+                else
+                {
+                    // C = 1 - normalized distance
+                    //printf("max distance is %f\n", max_distance);
+                    distances.at<float>(y, x) = (max_distance - distances.at<float>(y, x)) / max_distance;
+                    //printf("result distance is %f!\n\n", distances.at<float>(y, x));
+                }
+                if (distances.at<float>(y, x) > 1 || distances.at<float>(y, x) < 0) printf("Error in confidence flow computation!\n");
+            }
+        }
+        //printf("max distance is %d\n", max_distance);
+        return distances;
+    }
+    else
+    {
+        // Forward and backwards flow are the same, C = 1
+        return cv::Mat1f::ones(forward_flow.rows, forward_flow.cols);
+    }
+}

@@ -11,143 +11,94 @@
  */
 
 #pragma once
+#ifndef PF_H
+#define PF_H
 
 #define _USE_MATH_DEFINES
 #include <opencv2/opencv.hpp>
 #include <cmath>
 #include <assert.h>
 
-#include "cpmpf_parameters.h"
-#include "flowIO.h"
-#include "ImageIOpfm.h"
-
 using namespace cv;
 using namespace std;
 
-
-const Vec2i kPOSITION_INVALID = Vec2i(-1, -1);
-const float kMOVEMENT_UNKNOWN = 1e10;
-const Vec2f kFLOW_UNKNOWN = Vec2f(kMOVEMENT_UNKNOWN,kMOVEMENT_UNKNOWN);
-
-// Transforms a relative flow R into an absolute flow A, checking for margins
-// Ax = X + Rx , Ay = Y + Ry
-// if either
-//   - Ax is outside [0,w] or
-//   - Ay outside [0,y]
-// it returns kPOSITION_INVALID
-inline Vec2i getAbsoluteFlow(int x, int y, const Vec2f& flow, int h, int w)
+template <class TI>
+class PermeabilityFilter
 {
-    Vec2i result(cvRound(y + flow[1]), cvRound(x + flow[0]));
-    if(result[0] >= 0 && result[0] < h && result[1] >= 0 && result[1] < w)
-        return result;
-    else
-        return kPOSITION_INVALID;
+private:
+    
+public:
+    PermeabilityFilter(); // Initializes default parameters
+
+    // Spatial parameters
+    int iter_XY;
+    int lambda_XY;
+    float sigma_XY;
+    float alpha_XY;
+
+    Mat1f computeSpatialPermeability(Mat_<TI> src);
+    
+    Mat1f filterXY(const Mat_<TI> I, const Mat1f J); // For single-channel target image J
+    template <class TJ>
+    Mat_<TJ> filterXY(const Mat_<TI> I, const Mat_<TJ> J); // For multi-channel target image J
+
+
+    // Temporal parameters
+    int iter_T;
+    float lambda_T;
+    float sigma_photo;
+    float sigma_grad;
+    float alpha_photo;
+    float alpha_grad;
+    
+    Mat1f computeTemporalPermeability(const Mat_<TI> I, const Mat_<TI> I_prev, const Mat2f flow_XY, const Mat2f flow_prev_XYT);
+    
+    template <class TJ>
+    vector<Mat_<TJ> > filterT(  const Mat_<TI> I, const Mat_<TI> I_prev, 
+                                    const Mat_<TJ> J_XY, const Mat_<TJ> J_prev_XY,
+                                    const Mat2f flow_XY, const Mat2f flow_prev_XYT,
+                                    const Mat_<TJ> l_t_prev, const Mat_<TJ> l_t_normal_prev);
+};
+#endif //! PF_H
+
+
+
+
+template <class TI>
+PermeabilityFilter<TI>::PermeabilityFilter()
+{
+    // Init default parameters
+    // Spatial
+    iter_XY = 5;
+    lambda_XY = 0.0f;
+    sigma_XY = 0.017f;
+    alpha_XY = 2.0f;
+
+    // Temporal
+    iter_T = 1;
+    lambda_T = 0.0f;
+    sigma_photo = 0.3f;
+    sigma_grad = 1.0f;
+    alpha_photo = 2.0f;
+    alpha_grad = 2.0f;
 }
 
-// Computes the normalized confidence map C between forward flow F and backward flow B
-// First, the disntance D at every position (X,Y) is computed :
-//     D(X,Y) = ||F(X,Y) - B(X + Fx(X,Y),y + Fy(X,Y))||
-// Then, normalized confidence map C is computed :
-//     C = 1 - D / max(D)
-inline Mat1f getFlowConfidence(Mat2f forward_flow, Mat2f backward_flow)
+/* ---------------- Spatial filtering --------------------------- */
+template <class TI>
+Mat1f PermeabilityFilter<TI>::computeSpatialPermeability(Mat_<TI> src)
 {
-    Mat1f distances = Mat1f(forward_flow.rows, forward_flow.cols, -1);
-
-    int h = forward_flow.rows;
-    int w = forward_flow.cols;
-    float max_distance = -1;
-
-    // Computes the distance between forward and backwards flow
-    #pragma omp parallel for
-    for(int y = 0; y < h ; ++y)
-    {
-        for(int x = 0; x < w ; ++x)
-        {
-            // If there is forward flow for the position F(x,y)
-            Vec2f forward = forward_flow.at<Vec2f>(y, x);
-            if(forward[0] != kFLOW_UNKNOWN[0] && forward[1] != kFLOW_UNKNOWN[1])
-            {
-                Vec2i next_position = getAbsoluteFlow(x, y, forward, h, w);
-                if(next_position != kPOSITION_INVALID)
-                {
-                    // If there is backward flow for the refered position B(x + F(x,y).x,y + F(x,y).y)
-                    Vec2f backward = backward_flow.at<Vec2f>(next_position[0], next_position[1]);
-                    if(backward[0] != kFLOW_UNKNOWN[0] && backward[1] != kFLOW_UNKNOWN[1])
-                    {
-                        // computes the distance
-                        float distance = (float)norm(forward + backward);
-
-                        // Updates the max distance, if required
-                        if(distance > max_distance)
-                        {
-                            #pragma omp critical
-                            {
-                                if(distance > max_distance)
-                                    max_distance = distance;
-                            }
-                        }
-
-                        // Updates the distance map
-                        distances.at<float>(y, x) = distance;
-                    }
-                }
-            }
-        }
-    }
-
-    // If there is a difference between F and B
-    if(max_distance > 0)
-    {
-        // Computes the normalized confidence map
-        #pragma omp parallel for
-        for(int y = 0; y < h ; ++y)
-        {
-            for(int x = 0; x < w ; ++x)
-            {
-                
-                if(distances.at<float>(y, x) < 0)
-                {
-                    // Unknown flow, C = 0
-                    distances.at<float>(y, x) = 0;
-                    
-                }
-                else
-                {
-                    // C = 1 - normalized distance
-                    //printf("max distance is %f\n", max_distance);
-                    distances.at<float>(y, x) = (max_distance - distances.at<float>(y, x)) / max_distance;
-                    //printf("result distance is %f!\n\n", distances.at<float>(y, x));
-                }
-                if (distances.at<float>(y, x) > 1 || distances.at<float>(y, x) < 0) printf("Error in confidence flow computation!\n");
-            }
-        }
-        //printf("max distance is %d\n", max_distance);
-        return distances;
-    }
-    else
-    {
-        // Forward and backwards flow are the same, C = 1
-        return Mat1f::ones(forward_flow.rows, forward_flow.cols);
-    }
-}
-
-
-
-template <class TSrc>
-Mat1f computeSpatialPermeability(Mat_<TSrc> src, float sigma_XY, float alpha_XY)
-{
-    Mat_<TSrc> I = src;
+    Mat_<TI> I = src;
     int h = I.rows;
     int w = I.cols;
     int num_channels = I.channels();
 
     // horizontal & vertical difference
-    Mat_<TSrc> I_shifted = Mat_<TSrc>::zeros(h,w);
+    Mat_<TI> I_shifted = Mat_<TI>::zeros(h,w);
     Mat warp_mat = (Mat_<double>(2,3) <<1,0,-1, 0,1,0);
     warpAffine(I, I_shifted, warp_mat, I_shifted.size()); // could also use rect() to translate image
 
     // Equation (2) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
-    Mat_<TSrc> diff_perm = Mat_<TSrc>::zeros(h,w);
+    Mat_<TI> diff_perm = Mat_<TI>::zeros(h,w);
     diff_perm = I - I_shifted; // Ip - Ip' with 3 channels
     std::vector<Mat1f> diff_channels(num_channels);
     split(diff_perm, diff_channels);
@@ -174,36 +125,29 @@ Mat1f computeSpatialPermeability(Mat_<TSrc> src, float sigma_XY, float alpha_XY)
 
 
 // For single-channel target image J
-template <class TSrc>
-Mat1f filterXY(const Mat_<TSrc> I, const Mat1f J, const cpmpf_parameters &cpm_pf_params)
+template <class TI>
+Mat1f PermeabilityFilter<TI>::filterXY(const Mat_<TI> I, const Mat1f J)
 {
     // Input image
     int h = I.rows;
     int w = I.cols;
 
-    // filter parameters
-    float iterations = cpm_pf_params.PF_iter_XY;
-    int lambda_XY = cpm_pf_params.PF_lambda_XY;
-    float sigma_XY = cpm_pf_params.PF_sigma_XY;
-    float alpha_XY = cpm_pf_params.PF_alpha_XY;
-
     // spatial filtering
     Mat1f J_XY;
     J.copyTo(J_XY);
-    Mat1f Mat_Ones = Mat1f::ones(1,1);
-
+    
     //compute spatial permeability
     //compute horizontal filtered image
     Mat1f perm_horizontal;
     Mat1f perm_vertical;
-    perm_horizontal = computeSpatialPermeability<TSrc>(I, sigma_XY, alpha_XY);
+    perm_horizontal = computeSpatialPermeability(I);
 
     //compute vertical filtered image
-    Mat_<TSrc> I_t = I.t();
-    perm_vertical = computeSpatialPermeability<TSrc>(I_t, sigma_XY, alpha_XY);
+    Mat_<TI> I_t = I.t();
+    perm_vertical = computeSpatialPermeability(I_t);
     perm_vertical = perm_vertical.t();
 
-    for (int i = 0; i < iterations; ++i) {
+    for (int i = 0; i < iter_XY; ++i) {
         // spatial filtering
         // Equation (5) and (6) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
 
@@ -267,50 +211,45 @@ Mat1f filterXY(const Mat_<TSrc> I, const Mat1f J, const cpmpf_parameters &cpm_pf
     return J_XY;
 }
 
+
 // For multi-channel target image J
-template <class TSrc, class TValue>
-Mat_<TValue> filterXY(const Mat_<TSrc> I, const Mat_<TValue> J, const cpmpf_parameters &cpm_pf_params)
+template <class TI>
+template <class TJ>
+Mat_<TJ> PermeabilityFilter<TI>::filterXY(const Mat_<TI> I, const Mat_<TJ> J)
 {
     // Input image
     int h = I.rows;
     int w = I.cols;
 
-    // filter parameters
-    float iterations = cpm_pf_params.PF_iter_XY;
-    int lambda_XY = cpm_pf_params.PF_lambda_XY;
-    float sigma_XY = cpm_pf_params.PF_sigma_XY;
-    float alpha_XY = cpm_pf_params.PF_alpha_XY;
-
     // spatial filtering
     int num_chs = J.channels();
-    Mat_<TValue> J_XY;
+    Mat_<TJ> J_XY;
     J.copyTo(J_XY);
-    Mat_<TValue> Mat_Ones = Mat_<TValue>::ones(1,1);
-
+    
     
     //compute spatial permeability
     //compute horizontal filtered image
     Mat1f perm_horizontal;
     Mat1f perm_vertical;
-    perm_horizontal = computeSpatialPermeability<TSrc>(I, sigma_XY, alpha_XY);
+    perm_horizontal = computeSpatialPermeability(I);
 
     //compute vertical filtered image
-    Mat_<TSrc> I_t = I.t();
-    perm_vertical = computeSpatialPermeability<TSrc>(I_t, sigma_XY, alpha_XY);
+    Mat_<TI> I_t = I.t();
+    perm_vertical = computeSpatialPermeability(I_t);
     perm_vertical = perm_vertical.t();
 
-    for (int i = 0; i < iterations; ++i) {
+    for (int i = 0; i < iter_XY; ++i) {
         // spatial filtering
         // Equation (5) and (6) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
 
         // horizontal
-        Mat_<TValue> J_XY_upper_h = Mat_<TValue>::zeros(h,w); //upper means upper of fractional number
-        Mat_<TValue> J_XY_lower_h = Mat_<TValue>::zeros(h,w);
+        Mat_<TJ> J_XY_upper_h = Mat_<TJ>::zeros(h,w); //upper means upper of fractional number
+        Mat_<TJ> J_XY_lower_h = Mat_<TJ>::zeros(h,w);
         for (int y = 0; y < h; y++) {
-            Mat_<TValue> lp = Mat_<TValue>::zeros(1,w);
-            Mat_<TValue> lp_normal = Mat_<TValue>::zeros(1,w);
-            Mat_<TValue> rp = Mat_<TValue>::zeros(1,w);
-            Mat_<TValue> rp_normal = Mat_<TValue>::zeros(1,w);
+            Mat_<TJ> lp = Mat_<TJ>::zeros(1,w);
+            Mat_<TJ> lp_normal = Mat_<TJ>::zeros(1,w);
+            Mat_<TJ> rp = Mat_<TJ>::zeros(1,w);
+            Mat_<TJ> rp_normal = Mat_<TJ>::zeros(1,w);
 
             for (int c = 0; c < num_chs; c++) {
                 // left pass
@@ -335,13 +274,13 @@ Mat_<TValue> filterXY(const Mat_<TSrc> I, const Mat_<TValue> J, const cpmpf_para
         }
 
         //vertical
-        Mat_<TValue> J_XY_upper_v = Mat_<TValue>::zeros(h,w);
-        Mat_<TValue> J_XY_lower_v = Mat_<TValue>::zeros(h,w);
+        Mat_<TJ> J_XY_upper_v = Mat_<TJ>::zeros(h,w);
+        Mat_<TJ> J_XY_lower_v = Mat_<TJ>::zeros(h,w);
         for (int x = 0; x < w; x++) {
-            Mat_<TValue> dp = Mat_<TValue>::zeros(h,1);
-            Mat_<TValue> dp_normal = Mat_<TValue>::zeros(h,1);
-            Mat_<TValue> up = Mat_<TValue>::zeros(h,1);
-            Mat_<TValue> up_normal = Mat_<TValue>::zeros(h,1);
+            Mat_<TJ> dp = Mat_<TJ>::zeros(h,1);
+            Mat_<TJ> dp_normal = Mat_<TJ>::zeros(h,1);
+            Mat_<TJ> up = Mat_<TJ>::zeros(h,1);
+            Mat_<TJ> up_normal = Mat_<TJ>::zeros(h,1);
 
             for (int c = 0; c < num_chs; c++) {
                 // (left pass) down pass
@@ -367,8 +306,10 @@ Mat_<TValue> filterXY(const Mat_<TSrc> I, const Mat_<TValue> J, const cpmpf_para
 }
 
 
-template <class TSrc>
-Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, const Mat2f flow_XY, const Mat2f flow_prev_XYT, const float sigma_photo, const float sigma_grad, const float alpha_photo, const float alpha_grad)
+
+/* ---------------- Temporal filtering --------------------------- */
+template <class TI>
+Mat1f PermeabilityFilter<TI>::computeTemporalPermeability(const Mat_<TI> I, const Mat_<TI> I_prev, const Mat2f flow_XY, const Mat2f flow_prev_XYT)
 {
     int h = I.rows;
     int w = I.cols;
@@ -379,7 +320,7 @@ Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, c
     Mat1f perm_gradient = Mat1f::zeros(h,w);
     Mat1f perm_photo = Mat1f::zeros(h,w);
 
-    Mat_<TSrc> I_prev_warped = Mat_<TSrc>::zeros(h,w);
+    Mat_<TI> I_prev_warped = Mat_<TI>::zeros(h,w);
 
     Mat prev_map_x = Mat::zeros(h,w, CV_32FC1);
     Mat prev_map_y = Mat::zeros(h,w, CV_32FC1);
@@ -419,7 +360,7 @@ Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, c
     // imwrite("warp_image" + oss.str() + ".png", I_warp);
 
     // Equation (11) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
-    Mat_<TSrc> diff_I = I - I_prev_warped;
+    Mat_<TI> diff_I = I - I_prev_warped;
     std::vector<Mat1f> diff_I_channels(num_channels);
     split(diff_I, diff_I_channels);
     Mat1f sum_diff_I = Mat1f::zeros(h, w);
@@ -461,15 +402,15 @@ Mat1f computeTemporalPermeability(const Mat_<TSrc> I, const Mat_<TSrc> I_prev, c
     return perm_temporal;
 }
 
-template <class TSrc, class TValue>
-vector<Mat_<TValue> > filterT(  const Mat_<TSrc> I, const Mat_<TSrc> I_prev, 
-                                const Mat_<TValue> J_XY, const Mat_<TValue> J_prev_XY,
-                                const Mat2f flow_XY, const Mat2f flow_prev_XYT,
-                                const Mat_<TValue> l_t_prev, const Mat_<TValue> l_t_normal_prev,
-                                const cpmpf_parameters &cpm_pf_params)
+template <class TI>
+template <class TJ>
+vector<Mat_<TJ> > PermeabilityFilter<TI>::filterT(  const Mat_<TI> I, const Mat_<TI> I_prev, 
+                                                    const Mat_<TJ> J_XY, const Mat_<TJ> J_prev_XY,
+                                                    const Mat2f flow_XY, const Mat2f flow_prev_XYT,
+                                                    const Mat_<TJ> l_t_prev, const Mat_<TJ> l_t_normal_prev)
 {
     //store result variable
-    vector<Mat_<TValue> > result;
+    vector<Mat_<TJ> > result;
 
     // Input image
     int h = I.rows;
@@ -487,24 +428,16 @@ vector<Mat_<TValue> > filterT(  const Mat_<TSrc> I, const Mat_<TSrc> I_prev,
     }
 */
 
-    Mat_<TValue> J_XYT;
+    Mat_<TJ> J_XYT;
     J_XY.copyTo(J_XYT);
 
-    // filter parameters
-    int iterations = cpm_pf_params.PF_iter_T;
-    float lambda_T = cpm_pf_params.PF_lambda_T;
-    float sigma_photo = cpm_pf_params.PF_sigma_photo;
-    float sigma_grad = cpm_pf_params.PF_sigma_grad;
-    float alpha_photo = cpm_pf_params.PF_alpha_photo;
-    float alpha_grad = cpm_pf_params.PF_alpha_grad;
-    
     // temporal filtering
     //compute temporal permeability in this iteration
     Mat1f perm_temporal;
-    perm_temporal = computeTemporalPermeability<TSrc>(I, I_prev, flow_XY, flow_prev_XYT, sigma_photo, sigma_grad, alpha_photo, alpha_grad);
+    perm_temporal = computeTemporalPermeability(I, I_prev, flow_XY, flow_prev_XYT);
 
 
-    for (int i = 0; i < iterations; ++i)
+    for (int i = 0; i < iter_T; ++i)
     {
         //split flow
         //change flow file format to remap function required format
@@ -519,13 +452,13 @@ vector<Mat_<TValue> > filterT(  const Mat_<TSrc> I, const Mat_<TSrc> I_prev,
         split(prev_map, flow_XYT_prev_maps);
 
         // temporal filtering
-        Mat_<TValue> l_t = Mat_<TValue>::zeros(h, w);
-        Mat_<TValue> l_t_normal = Mat_<TValue>::zeros(h, w);
+        Mat_<TJ> l_t = Mat_<TJ>::zeros(h, w);
+        Mat_<TJ> l_t_normal = Mat_<TJ>::zeros(h, w);
         
         // no need to do pixel-wise operation (via J(y,x)) since all operation is based on same location pixels
         // forward pass & combining
-        Mat_<TValue> temp_l_t_prev = Mat_<TValue>::zeros(h, w);
-        Mat_<TValue> temp_l_t_prev_warped = Mat_<TValue>::zeros(h, w);
+        Mat_<TJ> temp_l_t_prev = Mat_<TJ>::zeros(h, w);
+        Mat_<TJ> temp_l_t_prev_warped = Mat_<TJ>::zeros(h, w);
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 for (int c = 0; c < num_channels_flow; c++) {
@@ -544,8 +477,8 @@ vector<Mat_<TValue> > filterT(  const Mat_<TSrc> I, const Mat_<TSrc> I_prev,
             }
         }
         
-        Mat_<TValue> temp_l_t_normal_prev = Mat_<TValue>::zeros(h, w);
-        Mat_<TValue> temp_l_t_normal_prev_warped = Mat_<TValue>::zeros(h, w);
+        Mat_<TJ> temp_l_t_normal_prev = Mat_<TJ>::zeros(h, w);
+        Mat_<TJ> temp_l_t_normal_prev_warped = Mat_<TJ>::zeros(h, w);
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 for (int c = 0; c < num_channels_flow; c++) {

@@ -45,15 +45,15 @@ cpmpf_parameters::cpmpf_parameters(std::string dataset_name) {
 
 // Operators overloading
 // For debug purpose mostly
-std::ostream& operator<< (std::ostream& os, cpmpf_parameters& cpmpf_param)
+std::ostream& operator<< (std::ostream& os, cpmpf_parameters &cpmpf_param)
 {
 	os << std::endl << "[CPMPF parameters]" << std::endl;
 	os << "CPM_max_displacement: "    << cpmpf_param.CPM_max_displacement << std::endl;
 	os << "CPM_check_threshold: "     << cpmpf_param.CPM_check_threshold << std::endl;
-	os << "CPM_stereo_flag: "                   << cpmpf_param.CPM_stereo_flag << std::endl;
-	os << "CPM_step: "                          << cpmpf_param.CPM_step << std::endl;
+	os << "CPM_stereo_flag: "         << cpmpf_param.CPM_stereo_flag << std::endl;
+	os << "CPM_step: "                << cpmpf_param.CPM_step << std::endl;
 	
-	os << "PF_iter_XY: "   << cpmpf_param.PF_iter_XY << std::endl;
+	os << "PF_iter_XY: "    << cpmpf_param.PF_iter_XY << std::endl;
 	os << "PF_lambda_XY: "  << cpmpf_param.PF_lambda_XY << std::endl;
 	os << "PF_sigma_XY: "   << cpmpf_param.PF_sigma_XY << std::endl;
 	os << "PF_alpha_XY: "   << cpmpf_param.PF_alpha_XY << std::endl;

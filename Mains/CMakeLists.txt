@@ -5,8 +5,8 @@ set(${PROJECT_NAME}_PROJECT_SRCS
 	
 	cpmpf_parameters.h
 	cpmpf_parameters.cpp
-	flowIO.h
-	flowIO.cpp
+	flow.h
+	flow.cpp
 	ImageIOpfm.h
 	ImageIOpfm.cpp
 	utils.h
@@ -38,8 +38,8 @@ set(${PROJECT_NAME}_PROJECT_SRCS
 	
 	cpmpf_parameters.h
 	cpmpf_parameters.cpp
-	flowIO.h
-	flowIO.cpp
+	flow.h
+	flow.cpp
 	ImageIOpfm.h
 	ImageIOpfm.cpp
 	utils.h
