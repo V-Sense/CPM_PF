@@ -58,6 +58,17 @@ inline cv::Vec2i getAbsoluteFlow(int x, int y, const cv::Vec2f& flow, int h, int
         return kPOSITION_INVALID;
 }
 
+inline int getAbsoluteDisp(int x, float disp, int w)
+{
+    int result = cvRound((float)x + disp);
+    if(result >= 0 && result < w)
+        return result;
+    else
+        return (int)kMOVEMENT_UNKNOWN;
+}
+
 cv::Mat1f getFlowConfidence(cv::Mat2f forward_flow, cv::Mat2f backward_flow);
+cv::Mat1f getHorDispConfidence(cv::Mat1f forward_disp, cv::Mat1f backward_flow);
+cv::Mat1f getVerDispConfidence(cv::Mat1f forward_disp, cv::Mat1f backward_flow);
 
 #endif //!FLOW_H

@@ -264,7 +264,7 @@ int main(int argc, char** argv)
         FImage img1(width, height, nch);
         FImage img2(width, height, nch);
         
-        Mat3f2FImage(input_RGB_images_vec[i], img1);
+        Mat3f2FImage(input_RGB_images_vec[i],   img1);
         Mat3f2FImage(input_RGB_images_vec[i+1], img2);
 
         // Forward flow
@@ -272,7 +272,7 @@ int main(int argc, char** argv)
         cpm.Matching(img1, img2, matches);
 
         Mat2f flow_fwd(height, width, kMOVEMENT_UNKNOWN);
-        Match2Mat2f(matches, flow_fwd);
+        Match2Flow(matches, flow_fwd);
         cpm_flow_fwd[i] = flow_fwd;
 
         // Backward flow
@@ -280,7 +280,7 @@ int main(int argc, char** argv)
         cpm.Matching(img2, img1, matches);
 
         Mat2f flow_bwd(height, width, kMOVEMENT_UNKNOWN);
-        Match2Mat2f(matches, flow_bwd);
+        Match2Flow(matches, flow_bwd);
         cpm_flow_bwd[i] = flow_bwd;
     }
     CPM_time.toc(" done in: ");
@@ -442,37 +442,21 @@ int main(int argc, char** argv)
     // temporal filter
     CTimer tPF_time;
     std::cout << "Running temporal permeability filter... " << flush;
-    Mat2f l_prev = Mat2f::zeros(height, width);
-    Mat2f l_normal_prev = Mat2f::zeros(height, width);
-    Mat2f It0_XYT, It1_XYT;
-    vector<Mat2f> It1_XYT_vector;
+    Mat2f l_t0_num = Mat2f::zeros(height, width);
+    Mat2f l_t0_den = Mat2f::zeros(height, width);
+    
     vector<Mat2f> pf_temporal_flow_vec(nb_imgs);
-
     pf_temporal_flow_vec[0] = pf_spatial_flow_vec[0];
 
     for (size_t i = 1; i < nb_imgs; ++i)
     {
         PF.set_I_T(input_RGB_images_vec[i-1], input_RGB_images_vec[i]);
-                
-        Mat2f It0_XY = pf_spatial_flow_vec[i - 1];
-        Mat2f It1_XY = pf_spatial_flow_vec[i];
 
-        if(i == 1) {
-            PF.computeTemporalPermeability(It1_XY, It0_XY);
-            It1_XYT_vector = PF.filterT<Vec2f>(It1_XY, It0_XY, It0_XY,  l_prev, l_normal_prev);
-        }
-        else {
-            PF.computeTemporalPermeability(It1_XY, It0_XYT);
-            It1_XYT_vector = PF.filterT<Vec2f>(It1_XY, It0_XY, It0_XYT, l_prev, l_normal_prev);
-        }
+        Mat2f flow_t0_XY = pf_temporal_flow_vec[i - 1];
+        Mat2f flow_t1_XY = pf_spatial_flow_vec[i];
 
-        It1_XYT = It1_XYT_vector[2];
-        l_prev = It1_XYT_vector[0];
-        l_normal_prev = It1_XYT_vector[1];
-
-        It0_XYT = It1_XYT;
-
-        pf_temporal_flow_vec[i] = It1_XYT;
+        PF.computeTemporalPermeability(flow_t0_XY, flow_t1_XY);
+        pf_temporal_flow_vec[i] = PF.filterT<Vec2f>(flow_t0_XY, flow_t1_XY, flow_t0_XY, l_t0_num, l_t0_den);
     }
     tPF_time.toc(" done in: ");
 

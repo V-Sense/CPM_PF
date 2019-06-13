@@ -23,7 +23,9 @@ extern "C" {
 /* ---------------- CONVERSION BETWEEN IMAGE TYPES --------------------------- */
 void Match2Flow(FImage& inMat, FImage& ou, FImage& ov, int w, int h);
 
-void Match2Mat2f(FImage matches, Mat2f &flow);
+void Match2Flow(FImage matches, Mat2f &flow);
+
+void Match2Disp(FImage matches, Mat1f &disp, string parallax);
 
 void WriteMatches(const char *filename, FImage& inMat);
 

@@ -268,32 +268,31 @@ int main(int argc, char** argv)
     CPM cpm;
     cpm_pf_params.to_CPM_params(cpm);
 
-    vector<Mat2f> cpm_flow_fwd(nb_imgs-1), cpm_flow_bwd(nb_imgs-1);
+    vector<Mat1f> cpm_disp_fwd(nb_imgs-1), cpm_disp_bwd(nb_imgs-1);
     
     #pragma omp parallel for 
     for (size_t i = 0; i < nb_imgs - 1; ++i) {
         FImage img1(width, height, nch);
         FImage img2(width, height, nch);
         
-        Mat3f2FImage(input_RGB_images_vec[i], img1);
+        Mat3f2FImage(input_RGB_images_vec[i],   img1);
         Mat3f2FImage(input_RGB_images_vec[i+1], img2);
 
         // Forward flow
         FImage matches;
         cpm.Matching(img1, img2, matches);
 
-        Mat2f flow_fwd(height, width, kMOVEMENT_UNKNOWN);
-        // flow_fwd = UNKNOWN_FLOW;
-        Match2Mat2f(matches, flow_fwd);
-        cpm_flow_fwd[i] = flow_fwd;
+        Mat1f disp_fwd(height, width, kMOVEMENT_UNKNOWN);
+        Match2Disp(matches, disp_fwd, "hor");
+        cpm_disp_fwd[i] = disp_fwd;
 
         // Backward flow
         matches.clear();
         cpm.Matching(img2, img1, matches);
 
-        Mat2f flow_bwd(height, width, kMOVEMENT_UNKNOWN);
-        Match2Mat2f(matches, flow_bwd);
-        cpm_flow_bwd[i] = flow_bwd;
+        Mat1f disp_bwd(height, width, kMOVEMENT_UNKNOWN);
+        Match2Disp(matches, disp_bwd, "hor");
+        cpm_disp_bwd[i] = disp_bwd;
     }
     CPM_time.toc(" done in: ");
 
@@ -310,49 +309,27 @@ int main(int argc, char** argv)
             str_replace(img_name1, img_ext, "");
             str_replace(img_name2, img_ext, "");
 
-            // // Forward matching
-            // string flow_fwd_name = "CPM__" + img_name1 + "__TO__" + img_name2;
-            // string flow_fwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_fwd_name + ".flo";
-            // WriteFlowFile(cpm_flow_fwd[i], flow_fwd_file.c_str());
-            
-            // flow_fwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_fwd_name + ".png";
-            // WriteFlowAsImage(cpm_flow_fwd[i], flow_fwd_file.c_str(), -1);
-
-
-            // // Backward matching
-            // string flow_bwd_name = "CPM__" + img_name2 + "__TO__" + img_name1;
-            // string flow_bwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_bwd_name + ".flo";
-            // WriteFlowFile(cpm_flow_bwd[i], flow_bwd_file.c_str());
-            
-            // flow_bwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_bwd_name + ".png";
-            // WriteFlowAsImage(cpm_flow_bwd[i], flow_bwd_file.c_str(), -1);
-
-            // Convert to disparity
-            vector<Mat1f> cpm_flow_split;
-            
             // Forward matching
-            cv::split(cpm_flow_fwd[i], cpm_flow_split);
-
-            Mat1f mask_flow_unknown = cpm_flow_split[0] != kMOVEMENT_UNKNOWN;
-            cpm_flow_split[0] = cpm_flow_split[0].mul(mask_flow_unknown); // Set unkown flow to 0 before writing to pfm file
+            Mat1f cpm_disp = cpm_disp_fwd[i];
+            Mat1f mask_flow_unknown = cpm_disp != kMOVEMENT_UNKNOWN;
+            cpm_disp = cpm_disp.mul(mask_flow_unknown); // Set unkown flow to 0 before writing to pfm file
 
             if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(-cpm_flow_split[0], cpm_flow_split[0], cv::ROTATE_90_CLOCKWISE);
+                cv::rotate(-cpm_disp, cpm_disp, cv::ROTATE_90_CLOCKWISE);
             
             string disp_file = cpm_pf_params.output_CPM_dir +  "/CPM__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-            WriteFilePFM(-cpm_flow_split[0], disp_file.c_str(), 1/255.0);
+            WriteFilePFM(-cpm_disp, disp_file.c_str(), 1/255.0);
             
             // Backward matching
-            cv::split(cpm_flow_bwd[i], cpm_flow_split);
-
-            mask_flow_unknown = cpm_flow_split[0] != kMOVEMENT_UNKNOWN;
-            cpm_flow_split[0] = cpm_flow_split[0].mul(mask_flow_unknown); // Set unkown flow to 0 before writing to pfm file
+            Mat1f cpm_disp = cpm_disp_bwd[i];
+            Mat1f mask_flow_unknown = cpm_disp != kMOVEMENT_UNKNOWN;
+            cpm_disp = cpm_disp.mul(mask_flow_unknown); // Set unkown flow to 0 before writing to pfm file
 
             if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(-cpm_flow_split[0], cpm_flow_split[0], cv::ROTATE_90_CLOCKWISE);
+                cv::rotate(-cpm_disp, cpm_disp, cv::ROTATE_90_CLOCKWISE);
 
             disp_file = cpm_pf_params.output_CPM_dir +  "/CPM__" + img_name2 + "__TO__" + img_name1 + ".pfm";
-            WriteFilePFM(-cpm_flow_split[0], disp_file.c_str(), 1/255.0);
+            WriteFilePFM(-cpm_disp, disp_file.c_str(), 1/255.0);
         }
         CPM_write_time.toc(" done in: ");
     }
@@ -365,85 +342,53 @@ int main(int argc, char** argv)
     // spatial filter
     CTimer sPF_time;
     std::cout << "Running spatial permeability filter... " << flush;
-    vector<Mat2f> pf_spatial_flow_vec(nb_imgs);
+    vector<Mat1f> pf_spatial_flow_vec(nb_imgs);
 
-    for (size_t i = 0; i < nb_imgs - 1; ++i) {
+    for (size_t i = 0; i < nb_imgs; ++i) {
         PF.set_I_XY(input_RGB_images_vec[i]); // Set guide image
-        Mat2f flow_forward  = cpm_flow_fwd[i];
-        Mat2f flow_backward = cpm_flow_bwd[i];
+        Mat1f disp_forward, disp_backward, disp_confidence;
+        if(i == (nb_imgs-1)) // For the last image, associate the backward flow with a minus sign
+        {
+            disp_forward  = cpm_disp_fwd[i-1];
+            disp_backward = cpm_disp_bwd[i-1];
 
-        // compute flow confidence map
-        Mat1f flow_confidence = getFlowConfidence(flow_forward, flow_backward);
+            // compute flow confidence map
+            disp_confidence = getHorDispConfidence(disp_backward, disp_forward);
+        }
+        else
+        {
+            disp_forward  = cpm_disp_fwd[i];
+            disp_backward = cpm_disp_bwd[i];
 
+            // compute flow confidence map
+            disp_confidence = getHorDispConfidence(disp_forward, disp_backward);
+        }
+        
+        
         // Apply spatial permeability filter on confidence
         PF.computeSpatialPermeabilityMaps();
-        Mat1f flow_confidence_filtered = PF.filterXY(flow_confidence);
-
+        Mat1f disp_confidence_filtered = PF.filterXY(disp_confidence);
 
         // multiply initial confidence and sparse flow
-        Mat2f confidenced_flow = Mat2f::zeros(flow_confidence.rows,flow_confidence.cols);
-        for(int y = 0; y < confidenced_flow.rows; y++) {
-            for(int x = 0; x < confidenced_flow.cols; x++) {
-                for(int c = 0; c < confidenced_flow.channels(); c++) {
-                    confidenced_flow(y,x)[c] = flow_forward(y,x)[c] * flow_confidence(y,x);
-                }
-            }
+        Mat1f confidenced_disp;
+        if(i == (nb_imgs-1)) // For the last image, associate the backward flow with a minus sign
+        {
+            confidenced_disp = disp_backward.mul(-disp_confidence);    
         }
-
-        //filter confidenced sparse flow
-        Mat2f confidenced_flow_XY = PF.filterXY<Vec2f>(confidenced_flow);
+        else
+        {
+            confidenced_disp = disp_forward.mul(disp_confidence);    
+        }
+            
+        
+        // filter confidenced sparse flow
+        Mat1f confidenced_disp_XY = PF.filterXY(confidenced_disp);
 
         // compute normalized spatial filtered flow FXY by division
-        Mat2f normalized_confidenced_flow_filtered = Mat2f::zeros(confidenced_flow_XY.rows,confidenced_flow_XY.cols);
-        for(int y = 0; y < confidenced_flow_XY.rows; y++) {
-            for(int x = 0; x < confidenced_flow_XY.cols; x++) {
-                for(int c = 0; c < confidenced_flow_XY.channels(); c++) {
-                    normalized_confidenced_flow_filtered(y,x)[c] = confidenced_flow_XY(y,x)[c] / flow_confidence_filtered(y,x);
-                }
-            }
-        }
-
-        pf_spatial_flow_vec[i] = normalized_confidenced_flow_filtered;
+        Mat1f normalized_confidenced_disp_filtered = confidenced_disp_XY.mul(1 / disp_confidence_filtered);
+        
+        pf_spatial_flow_vec[i] = normalized_confidenced_disp_filtered;
     }
-
-    // For the last image, associate the backward flow with a minus sign
-    PF.set_I_XY(input_RGB_images_vec[nb_imgs-1]); // Set guide image
-    Mat2f flow_forward  = cpm_flow_fwd[nb_imgs - 2];
-    Mat2f flow_backward = cpm_flow_bwd[nb_imgs - 2];
-
-    // compute flow confidence map
-    Mat1f flow_confidence = getFlowConfidence(flow_backward, flow_forward);
-
-    // Apply spatial permeability filter on confidence
-    PF.computeSpatialPermeabilityMaps();
-    Mat1f flow_confidence_filtered = PF.filterXY(flow_confidence);
-
-
-    // multiply initial confidence and sparse flow
-    Mat2f confidenced_flow = Mat2f::zeros(flow_confidence.rows,flow_confidence.cols);
-    for(int y = 0; y < confidenced_flow.rows; y++) {
-        for(int x = 0; x < confidenced_flow.cols; x++) {
-            for(int c = 0; c < confidenced_flow.channels(); c++) {
-                confidenced_flow(y,x)[c] = -flow_backward(y,x)[c] * flow_confidence(y,x);
-            }
-        }
-    }
-
-    //filter confidenced sparse flow
-    Mat2f confidenced_flow_XY = PF.filterXY<Vec2f>(confidenced_flow);
-
-    // compute normalized spatial filtered flow FXY by division
-    Mat2f normalized_confidenced_flow_filtered = Mat2f::zeros(confidenced_flow_XY.rows,confidenced_flow_XY.cols);
-    for(int y = 0; y < confidenced_flow_XY.rows; y++) {
-        for(int x = 0; x < confidenced_flow_XY.cols; x++) {
-            for(int c = 0; c < confidenced_flow_XY.channels(); c++) {
-                normalized_confidenced_flow_filtered(y,x)[c] = confidenced_flow_XY(y,x)[c] / flow_confidence_filtered(y,x);
-            }
-        }
-    }
-
-    pf_spatial_flow_vec[nb_imgs - 1] = normalized_confidenced_flow_filtered;
-    
 
     sPF_time.toc(" done in: ");
 
@@ -467,23 +412,13 @@ int main(int argc, char** argv)
             str_replace(img_name1, img_ext, "");
             str_replace(img_name2, img_ext, "");
 
-            // // Forward matching only
-            // string flow_fwd_name = "PF_spatial__" + img_name1 + "__TO__" + img_name2;
-            // string flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".flo";
-            // WriteFlowFile(pf_spatial_flow_vec[i], flow_fwd_file.c_str());
+            Mat1f pf_disp = pf_spatial_flow_vec[i];
             
-            // flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".png";
-            // WriteFlowAsImage(pf_spatial_flow_vec[i], flow_fwd_file.c_str(), -1);
-
-            // Convert to disparity
-            vector<Mat1f> pf_spatial_flow_split;
-            cv::split(pf_spatial_flow_vec[i], pf_spatial_flow_split);
-
             if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(-pf_spatial_flow_split[0], pf_spatial_flow_split[0], cv::ROTATE_90_CLOCKWISE);
+                cv::rotate(-pf_disp, pf_disp, cv::ROTATE_90_CLOCKWISE);
 
             string disp_file = cpm_pf_params.output_PF_dir +  "/PF_spatial__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-            WriteFilePFM(-pf_spatial_flow_split[0], disp_file.c_str(), 1/255.0);
+            WriteFilePFM(-pf_disp, disp_file.c_str(), 1/255.0);
         }
         sPF_write_time.toc(" done in: ");
     }
@@ -493,34 +428,34 @@ int main(int argc, char** argv)
     std::cout << "Running temporal permeability filter... " << flush;
     Mat2f l_prev = Mat2f::zeros(height, width);
     Mat2f l_normal_prev = Mat2f::zeros(height, width);
-    Mat2f It0_XYT, It1_XYT;
-    vector<Mat2f> It1_XYT_vector;
-    vector<Mat2f> pf_temporal_flow_vec(nb_imgs);
+    Mat2f disp_t0_XYT, disp_t1_XYT;
+    vector<Mat2f> disp_t1_XYT_vector;
+    vector<Mat1f> pf_temporal_flow_vec(nb_imgs);
 
     pf_temporal_flow_vec[0] = pf_spatial_flow_vec[0];
 
     for (size_t i = 1; i < nb_imgs; ++i)
     {
         PF.set_I_T(input_RGB_images_vec[i-1], input_RGB_images_vec[i]);
-        Mat2f It0_XY = pf_spatial_flow_vec[i - 1];
-        Mat2f It1_XY = pf_spatial_flow_vec[i];
+        Mat2f disp_t0_XY = pf_spatial_flow_vec[i - 1];
+        Mat2f disp_t1_XY = pf_spatial_flow_vec[i];
 
         if(i == 1) {
-            PF.computeTemporalPermeability(It1_XY, It0_XY);
-            It1_XYT_vector = PF.filterT<Vec2f>(It1_XY, It0_XY, It0_XY,  l_prev, l_normal_prev);
+            PF.computeTemporalPermeability(disp_t0_XY, disp_t1_XY);
+            disp_t1_XYT_vector = PF.filterT<Vec2f>(disp_t1_XY, disp_t0_XY, disp_t0_XY,  l_prev, l_normal_prev);
         }
         else {
-            PF.computeTemporalPermeability(It1_XY, It0_XYT);
-            It1_XYT_vector = PF.filterT<Vec2f>(It1_XY, It0_XY, It0_XYT, l_prev, l_normal_prev);
+            PF.computeTemporalPermeability(disp_t0_XYT, disp_t1_XY);
+            disp_t1_XYT_vector = PF.filterT<Vec2f>(disp_t0_XY, disp_t1_XY, disp_t0_XYT, l_prev, l_normal_prev);
         }
 
-        It1_XYT = It1_XYT_vector[2];
-        l_prev = It1_XYT_vector[0];
-        l_normal_prev = It1_XYT_vector[1];
+        disp_t1_XYT = disp_t1_XYT_vector[2];
+        l_prev = disp_t1_XYT_vector[0];
+        l_normal_prev = disp_t1_XYT_vector[1];
 
-        It0_XYT = It1_XYT;
+        disp_t0_XYT = disp_t1_XYT;
 
-        pf_temporal_flow_vec[i] = It1_XYT;
+        pf_temporal_flow_vec[i] = disp_t1_XYT;
     }
     tPF_time.toc(" done in: ");
 

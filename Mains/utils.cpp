@@ -43,7 +43,7 @@ void Match2Flow(FImage& inMat, FImage& ou, FImage& ov, int w, int h)
 	}
 }
 
-void Match2Mat2f(FImage matches, Mat2f &flow)
+void Match2Flow(FImage matches, Mat2f &flow)
 {
 	int h = flow.rows;
     int w = flow.cols;
@@ -61,6 +61,39 @@ void Match2Mat2f(FImage matches, Mat2f &flow)
 				int ty = ImageProcessing::EnforceRange(y + di, h);
 				flow(ty, tx)[0] = u;
 				flow(ty, tx)[1] = v;
+			}
+		}
+
+	}
+}
+
+void Match2Disp(FImage matches, Mat1f &disp, string parallax)
+{
+	if(parallax != "ver" || parallax != "vertical" || parallax != "hor" || parallax != "horizontal") 
+	{
+		cerr << "Wrong parallax direction in conversion from matches to disparity, should be ver or vertical or hor or horizontal" << endl;
+		exit(EXIT_FAILURE);
+	}
+
+	int h = disp.rows;
+    int w = disp.cols;
+	int cnt = matches.height();
+	for (int i = 0; i < cnt; i++){
+		float* p = matches.rowPtr(i);
+		float x = p[0];
+		float y = p[1];
+		float d;
+		
+		if(parallax == "hor" || parallax == "horizontal")
+			d = p[2] - p[0];
+		else if(parallax == "ver" || parallax == "horizontal")
+			d = p[3] - p[1];
+
+		for (int di = -1; di <= 1; di++){
+            for (int dj = -1; dj <= 1; dj++){
+				int tx = ImageProcessing::EnforceRange(x + dj, w);
+				int ty = ImageProcessing::EnforceRange(y + di, h);
+				disp(ty, tx) = d;
 			}
 		}
 

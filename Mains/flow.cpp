@@ -344,7 +344,7 @@ void WriteFlowAsImage(cv::Mat2f& flow, const char* imgName, float range /*= -1*/
 //     C = 1 - D / max(D)
 cv::Mat1f getFlowConfidence(cv::Mat2f forward_flow, cv::Mat2f backward_flow)
 {
-    cv::Mat1f distances = cv::Mat1f(forward_flow.rows, forward_flow.cols, -1);
+    cv::Mat1f distances = cv::Mat1f(forward_flow.rows, forward_flow.cols, -1.0);
 
     int h = forward_flow.rows;
     int w = forward_flow.cols;
@@ -421,5 +421,171 @@ cv::Mat1f getFlowConfidence(cv::Mat2f forward_flow, cv::Mat2f backward_flow)
     {
         // Forward and backwards flow are the same, C = 1
         return cv::Mat1f::ones(forward_flow.rows, forward_flow.cols);
+    }
+}
+
+// Flow confidence over horizontal direction only
+cv::Mat1f getHorDispConfidence(cv::Mat1f forward_disp, cv::Mat1f backward_disp)
+{
+    cv::Mat1f distances = cv::Mat1f(forward_disp.rows, forward_disp.cols, -1);
+
+    int h = forward_disp.rows;
+    int w = forward_disp.cols;
+    float max_distance = -1;
+
+    // Computes the distance between forward and backwards flow
+    #pragma omp parallel for
+    for(int y = 0; y < h ; ++y)
+    {
+        for(int x = 0; x < w ; ++x)
+        {
+            // If there is forward flow for the position F(x,y)
+            float forward = forward_disp(y, x);
+            if(forward != kMOVEMENT_UNKNOWN)
+            {
+                int next_position = getAbsoluteDisp(x, forward, w);
+                if(next_position != kMOVEMENT_UNKNOWN)
+                {
+                    // If there is backward flow for the refered position B(x + F(x,y).x,y + F(x,y).y)
+                    float backward = backward_disp(y, next_position);
+                    if(backward != kMOVEMENT_UNKNOWN)
+                    {
+                        // computes the distance
+                        float distance = (float)sqrt((forward + backward) * (forward + backward));
+
+                        // Updates the max distance, if required
+                        if(distance > max_distance)
+                        {
+                            #pragma omp critical
+                            {
+                                if(distance > max_distance)
+                                    max_distance = distance;
+                            }
+                        }
+
+                        // Updates the distance map
+                        distances.at<float>(y, x) = distance;
+                    }
+                }
+            }
+        }
+    }
+
+    // If there is a difference between F and B
+    if(max_distance > 0)
+    {
+        // Computes the normalized confidence map
+        #pragma omp parallel for
+        for(int y = 0; y < h ; ++y)
+        {
+            for(int x = 0; x < w ; ++x)
+            {
+                
+                if(distances.at<float>(y, x) < 0)
+                {
+                    // Unknown flow, C = 0
+                    distances.at<float>(y, x) = 0;
+                    
+                }
+                else
+                {
+                    // C = 1 - normalized distance
+                    //printf("max distance is %f\n", max_distance);
+                    distances.at<float>(y, x) = (max_distance - distances.at<float>(y, x)) / max_distance;
+                    //printf("result distance is %f!\n\n", distances.at<float>(y, x));
+                }
+                if (distances.at<float>(y, x) > 1 || distances.at<float>(y, x) < 0) printf("Error in confidence flow computation!\n");
+            }
+        }
+        //printf("max distance is %d\n", max_distance);
+        return distances;
+    }
+    else
+    {
+        // Forward and backwards flow are the same, C = 1
+        return cv::Mat1f::ones(forward_disp.rows, forward_disp.cols);
+    }
+}
+
+// Flow confidence over vertical direction only
+cv::Mat1f getVerDispConfidence(cv::Mat1f forward_disp, cv::Mat1f backward_disp)
+{
+    cv::Mat1f distances = cv::Mat1f(forward_disp.rows, forward_disp.cols, -1);
+
+    int h = forward_disp.rows;
+    int w = forward_disp.cols;
+    float max_distance = -1;
+
+    // Computes the distance between forward and backwards flow
+    #pragma omp parallel for
+    for(int y = 0; y < h ; ++y)
+    {
+        for(int x = 0; x < w ; ++x)
+        {
+            // If there is forward flow for the position F(x,y)
+            float forward = forward_disp(y, x);
+            if(forward != kMOVEMENT_UNKNOWN)
+            {
+                int next_position = getAbsoluteDisp(y, forward, h);
+                if(next_position != kMOVEMENT_UNKNOWN)
+                {
+                    // If there is backward flow for the refered position B(x + F(x,y).x,y + F(x,y).y)
+                    float backward = backward_disp(next_position, x);
+                    if(backward != kMOVEMENT_UNKNOWN)
+                    {
+                        // computes the distance
+                        float distance = (float)sqrt((forward + backward) * (forward + backward));
+
+                        // Updates the max distance, if required
+                        if(distance > max_distance)
+                        {
+                            #pragma omp critical
+                            {
+                                if(distance > max_distance)
+                                    max_distance = distance;
+                            }
+                        }
+
+                        // Updates the distance map
+                        distances.at<float>(y, x) = distance;
+                    }
+                }
+            }
+        }
+    }
+
+    // If there is a difference between F and B
+    if(max_distance > 0)
+    {
+        // Computes the normalized confidence map
+        #pragma omp parallel for
+        for(int y = 0; y < h ; ++y)
+        {
+            for(int x = 0; x < w ; ++x)
+            {
+                
+                if(distances.at<float>(y, x) < 0)
+                {
+                    // Unknown flow, C = 0
+                    distances.at<float>(y, x) = 0;
+                    
+                }
+                else
+                {
+                    // C = 1 - normalized distance
+                    //printf("max distance is %f\n", max_distance);
+                    distances.at<float>(y, x) = (max_distance - distances.at<float>(y, x)) / max_distance;
+                    //printf("result distance is %f!\n\n", distances.at<float>(y, x));
+                }
+                if (distances.at<float>(y, x) > 1 || distances.at<float>(y, x) < 0) printf("Error in confidence flow computation!\n");
+            }
+        }
+        //printf("max distance is %d\n", max_distance);
+        return distances;
+    }
+    else
+    {
+        // Forward and backwards flow are the same, C = 1
+        return cv::Mat1f::ones(forward_disp.rows, forward_disp.cols);
     }
 }
