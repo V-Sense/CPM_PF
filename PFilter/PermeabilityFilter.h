@@ -50,7 +50,7 @@ public:
     float sigma_XY;
     float alpha_XY;
 
-    Mat1f computeSpatialPermeability(const Mat_<TI> I);
+    void computeSpatialPermeability(string spatialDir);
     void computeSpatialPermeabilityMaps();
     
     Mat1f filterXY(const Mat1f J); // For single-channel target image J
@@ -70,7 +70,7 @@ public:
     
     template <class TJ>
     vector<Mat_<TJ> > filterT(  const Mat_<TJ> J_XY, const Mat_<TJ> J_prev_XY,
-                                const Mat2f flow_XY, const Mat2f flow_prev_XYT,
+                                const Mat2f flow_prev_XYT,
                                 const Mat_<TJ> l_t_prev, const Mat_<TJ> l_t_normal_prev);
 };
 #endif //! PF_H
@@ -125,8 +125,20 @@ void PermeabilityFilter<TI>::set_I_T(const Mat_<TI> I0, const Mat_<TI> I1)
 
 /* ---------------- Spatial filtering --------------------------- */
 template <class TI>
-Mat1f PermeabilityFilter<TI>::computeSpatialPermeability(Mat_<TI> I)
+void PermeabilityFilter<TI>::computeSpatialPermeability(string spatialDir)
 {
+    Mat_<TI> I;
+    if (spatialDir == "ver" || spatialDir == "vertical")
+        I = I_XY.t();
+    else if (spatialDir == "hor" || spatialDir == "horizontal")
+        I = I_XY;
+    else
+    {
+        cerr << "Wrong spatial direction for spatial permeability computation, should be hor, or horizontal, or ver, or vertical." << endl;
+        exit(EXIT_FAILURE);
+    }
+    
+
     int h = I.rows;
     int w = I.cols;
     int num_channels = I.channels();
@@ -159,7 +171,11 @@ Mat1f PermeabilityFilter<TI>::computeSpatialPermeability(Mat_<TI> I)
     // pow(1 + result, -1, result);
     result = 1 / (1 + result);
     
-    return result;
+    if (spatialDir == "ver" || spatialDir == "vertical")
+        perm_v = result.t();
+    else if (spatialDir == "hor" || spatialDir == "horizontal")
+        perm_h = result;
+    
 }
 
 template <class TI>
@@ -172,13 +188,9 @@ void PermeabilityFilter<TI>::computeSpatialPermeabilityMaps()
         // return;
     }
 
-    //compute horizontal filtered image
-    perm_h = computeSpatialPermeability(I_XY);
+    computeSpatialPermeability("hor");
+    computeSpatialPermeability("ver");
 
-    //compute vertical filtered image
-    perm_v = computeSpatialPermeability(I_XY.t());
-    perm_v = perm_v.t();
-    
     is_perm_xy_set = true;
 }
 
@@ -464,7 +476,7 @@ void PermeabilityFilter<TI>::computeTemporalPermeability(const Mat2f flow_XY, co
 template <class TI>
 template <class TJ>
 vector<Mat_<TJ> > PermeabilityFilter<TI>::filterT(  const Mat_<TJ> J_XY, const Mat_<TJ> J_prev_XY,
-                                                    const Mat2f flow_XY, const Mat2f flow_prev_XYT,
+                                                    const Mat2f flow_prev_XYT,
                                                     const Mat_<TJ> l_t_prev, const Mat_<TJ> l_t_normal_prev)
 {
     if(! is_perm_t_set)

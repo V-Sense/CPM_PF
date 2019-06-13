@@ -460,11 +460,11 @@ int main(int argc, char** argv)
 
         if(i == 1) {
             PF.computeTemporalPermeability(It1_XY, It0_XY);
-            It1_XYT_vector = PF.filterT<Vec2f>(It1_XY, It0_XY, It1_XY, It0_XY,  l_prev, l_normal_prev);
+            It1_XYT_vector = PF.filterT<Vec2f>(It1_XY, It0_XY, It0_XY,  l_prev, l_normal_prev);
         }
         else {
             PF.computeTemporalPermeability(It1_XY, It0_XYT);
-            It1_XYT_vector = PF.filterT<Vec2f>(It1_XY, It0_XY, It1_XY, It0_XYT, l_prev, l_normal_prev);
+            It1_XYT_vector = PF.filterT<Vec2f>(It1_XY, It0_XY, It0_XYT, l_prev, l_normal_prev);
         }
 
         It1_XYT = It1_XYT_vector[2];
