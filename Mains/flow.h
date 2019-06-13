@@ -1,4 +1,7 @@
 // flowIO.h
+#pragma once
+#ifndef FLOW_H
+#define FLOW_H
 
 #include <opencv2/opencv.hpp>
 
@@ -56,3 +59,5 @@ inline cv::Vec2i getAbsoluteFlow(int x, int y, const cv::Vec2f& flow, int h, int
 }
 
 cv::Mat1f getFlowConfidence(cv::Mat2f forward_flow, cv::Mat2f backward_flow);
+
+#endif //!FLOW_H

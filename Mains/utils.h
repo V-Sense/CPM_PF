@@ -13,8 +13,8 @@
 #pragma once
 #ifndef UTILS_H
 #define UTILS_H
+#include "Mains/flow.h"
 #include "CPM/CPM.h"
-#include "CPM/OpticFlowIO.h"
 #include "PFilter/PermeabilityFilter.h"
 extern "C" {
 #include "Variational_refinement/variational.h"

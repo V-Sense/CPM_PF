@@ -271,8 +271,7 @@ int main(int argc, char** argv)
         FImage matches;
         cpm.Matching(img1, img2, matches);
 
-        Mat2f flow_fwd(height, width, UNKNOWN_FLOW);
-        // flow_fwd = UNKNOWN_FLOW;
+        Mat2f flow_fwd(height, width, kMOVEMENT_UNKNOWN);
         Match2Mat2f(matches, flow_fwd);
         cpm_flow_fwd[i] = flow_fwd;
 
@@ -280,7 +279,7 @@ int main(int argc, char** argv)
         matches.clear();
         cpm.Matching(img2, img1, matches);
 
-        Mat2f flow_bwd(height, width, UNKNOWN_FLOW);
+        Mat2f flow_bwd(height, width, kMOVEMENT_UNKNOWN);
         Match2Mat2f(matches, flow_bwd);
         cpm_flow_bwd[i] = flow_bwd;
     }

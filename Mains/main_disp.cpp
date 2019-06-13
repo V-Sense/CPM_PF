@@ -214,7 +214,6 @@ int main(int argc, char** argv)
 
     vector<string> input_images_name_vec(nb_imgs);
 
-    if(ang_dir == "ver") cpm_pf_params.CPM_stereo_flag = 0;
     
     /* ---------------- READ INPUT RBG IMAGES --------------------------- */
     CTimer CPM_input_time;
@@ -252,10 +251,10 @@ int main(int argc, char** argv)
         Mat3f tmp_img3f;
         tmp_img.convertTo(tmp_img3f, CV_32F, 1/255.);
 
-        // if(ang_dir == "ver") // Rotate image 90 degress and process them as horizontal parallax (allows to use stereo_flag=1 for CPM)
-        // {
-        //     cv::rotate(tmp_img3f, tmp_img3f, cv::ROTATE_90_COUNTERCLOCKWISE);
-        // }
+        if(ang_dir == "ver") // Rotate image 90 degress and process them as horizontal parallax (allows to use stereo_flag=1 for CPM)
+        {
+            cv::rotate(tmp_img3f, tmp_img3f, cv::ROTATE_90_COUNTERCLOCKWISE);
+        }
 
         input_RGB_images_vec[i] = tmp_img3f;
     }
@@ -283,7 +282,7 @@ int main(int argc, char** argv)
         FImage matches;
         cpm.Matching(img1, img2, matches);
 
-        Mat2f flow_fwd(height, width, UNKNOWN_FLOW);
+        Mat2f flow_fwd(height, width, kMOVEMENT_UNKNOWN);
         // flow_fwd = UNKNOWN_FLOW;
         Match2Mat2f(matches, flow_fwd);
         cpm_flow_fwd[i] = flow_fwd;
@@ -292,7 +291,7 @@ int main(int argc, char** argv)
         matches.clear();
         cpm.Matching(img2, img1, matches);
 
-        Mat2f flow_bwd(height, width, UNKNOWN_FLOW);
+        Mat2f flow_bwd(height, width, kMOVEMENT_UNKNOWN);
         Match2Mat2f(matches, flow_bwd);
         cpm_flow_bwd[i] = flow_bwd;
     }
@@ -333,25 +332,27 @@ int main(int argc, char** argv)
             
             // Forward matching
             cv::split(cpm_flow_fwd[i], cpm_flow_split);
-            if(ang_dir == "hor") {
-                string disp_file = cpm_pf_params.output_VR_dir +  "/CPM__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-                WriteFilePFM(-cpm_flow_split[0], disp_file.c_str(), 1/255.0);
-            }
-            else if(ang_dir == "ver") {
-                string disp_file = cpm_pf_params.output_VR_dir +  "/CPM__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-                WriteFilePFM(cpm_flow_split[1], disp_file.c_str(), 1/255.0);
-            }
 
+            Mat1f mask_flow_unknown = cpm_flow_split[0] != kMOVEMENT_UNKNOWN;
+            cpm_flow_split[0] = cpm_flow_split[0].mul(mask_flow_unknown); // Set unkown flow to 0 before writing to pfm file
+
+            if(ang_dir == "ver") // Rotate back to original orientation
+                cv::rotate(-cpm_flow_split[0], cpm_flow_split[0], cv::ROTATE_90_CLOCKWISE);
+            
+            string disp_file = cpm_pf_params.output_CPM_dir +  "/CPM__" + img_name1 + "__TO__" + img_name2 + ".pfm";
+            WriteFilePFM(-cpm_flow_split[0], disp_file.c_str(), 1/255.0);
+            
             // Backward matching
             cv::split(cpm_flow_bwd[i], cpm_flow_split);
-            if(ang_dir == "hor") {
-                string disp_file = cpm_pf_params.output_VR_dir +  "/CPM__" + img_name2 + "__TO__" + img_name1 + ".pfm";
-                WriteFilePFM(-cpm_flow_split[0], disp_file.c_str(), 1/255.0);
-            }
-            else if(ang_dir == "ver") {
-                string disp_file = cpm_pf_params.output_VR_dir +  "/CPM__" + img_name2 + "__TO__" + img_name1 + ".pfm";
-                WriteFilePFM(cpm_flow_split[1], disp_file.c_str(), 1/255.0);
-            }
+
+            mask_flow_unknown = cpm_flow_split[0] != kMOVEMENT_UNKNOWN;
+            cpm_flow_split[0] = cpm_flow_split[0].mul(mask_flow_unknown); // Set unkown flow to 0 before writing to pfm file
+
+            if(ang_dir == "ver") // Rotate back to original orientation
+                cv::rotate(-cpm_flow_split[0], cpm_flow_split[0], cv::ROTATE_90_CLOCKWISE);
+
+            disp_file = cpm_pf_params.output_CPM_dir +  "/CPM__" + img_name2 + "__TO__" + img_name1 + ".pfm";
+            WriteFilePFM(-cpm_flow_split[0], disp_file.c_str(), 1/255.0);
         }
         CPM_write_time.toc(" done in: ");
     }
@@ -477,14 +478,12 @@ int main(int argc, char** argv)
             // Convert to disparity
             vector<Mat1f> pf_spatial_flow_split;
             cv::split(pf_spatial_flow_vec[i], pf_spatial_flow_split);
-            if(ang_dir == "hor") {
-                string disp_file = cpm_pf_params.output_VR_dir +  "/PF_spatial__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-                WriteFilePFM(-pf_spatial_flow_split[0], disp_file.c_str(), 1/255.0);
-            }
-            else if(ang_dir == "ver") {
-                string disp_file = cpm_pf_params.output_VR_dir +  "/PF_spatial__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-                WriteFilePFM(pf_spatial_flow_split[1], disp_file.c_str(), 1/255.0);
-            }
+
+            if(ang_dir == "ver") // Rotate back to original orientation
+                cv::rotate(-pf_spatial_flow_split[0], pf_spatial_flow_split[0], cv::ROTATE_90_CLOCKWISE);
+
+            string disp_file = cpm_pf_params.output_PF_dir +  "/PF_spatial__" + img_name1 + "__TO__" + img_name2 + ".pfm";
+            WriteFilePFM(-pf_spatial_flow_split[0], disp_file.c_str(), 1/255.0);
         }
         sPF_write_time.toc(" done in: ");
     }
@@ -556,14 +555,12 @@ int main(int argc, char** argv)
             // Convert to disparity
             vector<Mat1f> pf_temporal_flow_split;
             cv::split(pf_temporal_flow_vec[i], pf_temporal_flow_split);
-            if(ang_dir == "hor") {
-                string disp_file = cpm_pf_params.output_VR_dir +  "/PF_temporal__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-                WriteFilePFM(-pf_temporal_flow_split[0], disp_file.c_str(), 1/255.0);
-            }
-            else if(ang_dir == "ver") {
-                string disp_file = cpm_pf_params.output_VR_dir +  "/PF_temporal__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-                WriteFilePFM(pf_temporal_flow_split[1], disp_file.c_str(), 1/255.0);
-            }
+
+            if(ang_dir == "ver") // Rotate back to original orientation
+                cv::rotate(-pf_temporal_flow_split[0], pf_temporal_flow_split[0], cv::ROTATE_90_CLOCKWISE);
+
+            string disp_file = cpm_pf_params.output_PF_dir +  "/PF_temporal__" + img_name1 + "__TO__" + img_name2 + ".pfm";
+            WriteFilePFM(-pf_temporal_flow_split[0], disp_file.c_str(), 1/255.0);
         }
         tPF_write_time.toc(" done in: ");
     }
@@ -636,18 +633,16 @@ int main(int argc, char** argv)
         // Convert to disparity
         vector<Mat1f> vr_flow_split;
         cv::split(vr_flow_vec[i], vr_flow_split);
-        if(ang_dir == "hor") {
-            string disp_file = cpm_pf_params.output_VR_dir +  "/VR__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-            WriteFilePFM(-vr_flow_split[0], disp_file.c_str(), 1/255.0);
-        }
-        else if(ang_dir == "ver") {
-            string disp_file = cpm_pf_params.output_VR_dir +  "/VR__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-            WriteFilePFM(vr_flow_split[1], disp_file.c_str(), 1/255.0);
-        }
+
+        if(ang_dir == "ver") // Rotate back to original orientation
+                cv::rotate(-vr_flow_split[0], vr_flow_split[0], cv::ROTATE_90_CLOCKWISE);
+
+        string disp_file = cpm_pf_params.output_VR_dir +  "/VR__" + img_name1 + "__TO__" + img_name2 + ".pfm";
+        WriteFilePFM(-vr_flow_split[0], disp_file.c_str(), 1/255.0);
     }
     vr_write_time.toc(" done in: ");
     
     total_time.toc("\nTotal elapsed time: ");
 
-    return 0;
+    return EXIT_SUCCESS;
 }

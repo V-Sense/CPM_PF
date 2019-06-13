@@ -21,8 +21,8 @@ void Match2Flow(FImage& inMat, FImage& ou, FImage& ov, int w, int h)
 	if (!ov.matchDimension(w, h, 1)){
 		ov.allocate(w, h, 1);
 	}
-	ou.setValue(UNKNOWN_FLOW);
-	ov.setValue(UNKNOWN_FLOW);
+	ou.setValue(kMOVEMENT_UNKNOWN);
+	ov.setValue(kMOVEMENT_UNKNOWN);
 	int cnt = inMat.height();
 	for (int i = 0; i < cnt; i++){
 		float* p = inMat.rowPtr(i);
