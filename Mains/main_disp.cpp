@@ -434,6 +434,7 @@ int main(int argc, char** argv)
 
     pf_temporal_flow_vec[0] = pf_spatial_flow_vec[0];
 
+    PF.init_T(height, width); // Initializes PF internal accumulated buffer before loop
     for (size_t i = 1; i < nb_imgs; ++i)
     {
         PF.set_I_T(input_RGB_images_vec[i-1], input_RGB_images_vec[i]);

@@ -29,29 +29,38 @@ template <class TI>
 class PermeabilityFilter
 {
 private:
-    // Guide images
-    Mat_<TI> I_XY; // spatial
-    Mat_<TI> I_t0, I_t1; // temporal
-    bool is_I_XY_set, is_I_T_set;
+    
+    // Spatial parameters
+    Mat_<TI> I_XY; // Guide image
+    
+    bool is_I_XY_set;
+    bool is_perm_xy_set;
 
-    // Permeability maps
-    bool is_perm_xy_set, is_perm_t_set;
+    // Temporal parameters
+    Mat _l_t0_num, _l_t0_den; // Accumulated left pass buffer
+    Mat2f flow_t0, flow_t1;
+    Mat1f disp_t0, disp_t1;
+    Mat map_t0_to_t1_x, map_t0_to_t1_y;
+    Mat_<TI> I_t0, I_t1; // Guide images
+    
+    bool is_l_init;
+    bool is_flow_set;
+    bool is_disp_set;
+    bool is_I_T_set;
+    bool is_perm_t_set;
         
 public:
     PermeabilityFilter(); // Initializes default parameters
 
-    // Guide images
-    void set_I_XY(const Mat_<TI> I); // spatial
-    void set_I_T(const Mat_<TI> I0, const Mat_<TI> I1); // temporal
-
-    // Permeability maps
-    Mat1f perm_h, perm_v, perm_t;
-
+    
     // Spatial parameters
     int iter_XY;
     int lambda_XY;
     float sigma_XY;
     float alpha_XY;
+
+    Mat1f perm_v, perm_h; // Permeability maps
+    void set_I_XY(const Mat_<TI> I); // Guide images
 
     void computeSpatialPermeability(string spatialDir);
     void computeSpatialPermeabilityMaps();
@@ -68,13 +77,22 @@ public:
     float sigma_grad;
     float alpha_photo;
     float alpha_grad;
-    
-    void computeTemporalPermeability(const Mat2f flow_t0, const Mat2f flow_t1);
-    
+
+    Mat1f perm_t; // Permeability map
+
     template <class TJ>
-    Mat_<TJ> filterT(   const Mat_<TJ> J_t0_XYT, const Mat_<TJ> J_t1_XY,
-                        const Mat2f flow_t0,
-                        Mat_<TJ> &l_t0_num, Mat_<TJ> &l_t0_den);
+    void init_T(int h, int w);
+    void set_I_T(const Mat_<TI> I0, const Mat_<TI> I1); // Guide images
+    void set_flow_T(const Mat2f f0, const Mat2f f1);
+    void set_flow_off();
+    void set_disp_T(const Mat1f d0, const Mat1f d1, const string parallax);
+    void set_disp_off();
+    
+    void computeTemporalPermeability();
+    
+    Mat1f filterT(const Mat1f J_t0_XYT, const Mat1f J_t1_XY, Mat1f &l_t0_num, Mat1f &l_t0_den); // For single-channel target images J
+    template <class TJ>
+    Mat_<TJ> filterT(const Mat_<TJ> J_t0_XYT, const Mat_<TJ> J_t1_XY, Mat_<TJ> &l_t0_num, Mat_<TJ> &l_t0_den); // For multi-channel target images J
 };
 #endif //! PF_H
 
@@ -91,6 +109,9 @@ PermeabilityFilter<TI>::PermeabilityFilter()
     sigma_XY = 0.017f;
     alpha_XY = 2.0f;
 
+    is_I_XY_set = false;
+    is_perm_xy_set = false;
+
     // Temporal
     iter_T = 1;
     lambda_T = 0.0f;
@@ -99,12 +120,10 @@ PermeabilityFilter<TI>::PermeabilityFilter()
     alpha_photo = 2.0f;
     alpha_grad = 2.0f;
 
-    // Guide images
-    is_I_XY_set = false;
     is_I_T_set = false;
-
-    // Permeability maps
-    is_perm_xy_set = false;
+    is_l_init = false;
+    is_flow_set = false;
+    is_disp_set = false;
     is_perm_t_set = false;
 }
 
@@ -125,6 +144,109 @@ void PermeabilityFilter<TI>::set_I_T(const Mat_<TI> I0, const Mat_<TI> I1)
     I_t1 = I1;
     is_I_T_set = true;
 }
+
+
+// Temporal filter init
+template <class TI>
+template <class TJ>
+void PermeabilityFilter<TI>::init_T(int h, int w)
+{
+    _l_t0_num = Mat_<TJ>::zeros(h, w);
+    _l_t0_den = Mat_<TJ>::zeros(h, w);
+    is_l_init = true;
+}
+
+
+template <class TI>
+void PermeabilityFilter<TI>::set_flow_T(const Mat2f f0, const Mat2f f1)
+{
+    if(is_disp_set)
+    {
+        cerr << "Disparity map is already set in permeability filter, cannot set both flow and disparity." << endl;
+        exit(EXIT_FAILURE);
+    }
+
+    flow_t0 = f0;
+    flow_t1 = f1;
+    int h = f0.rows;
+    int w = f0.cols;
+
+    Mat map_x_32FC1 = Mat::zeros(h,w, CV_32FC1);
+    Mat map_y_32FC1 = Mat::zeros(h,w, CV_32FC1);
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++){
+            map_x_32FC1.at<float>(y,x) = x - flow_t0(y,x)[0];
+            map_y_32FC1.at<float>(y,x) = y - flow_t0(y,x)[1];
+        }
+    }
+    
+    map_t0_to_t1_x = Mat::zeros(h,w, CV_16SC2);
+    map_t0_to_t1_y = Mat::zeros(h,w, CV_16UC1);
+    convertMaps(map_x_32FC1, map_y_32FC1, map_t0_to_t1_x, map_t0_to_t1_y, CV_16SC2);
+
+    is_flow_set = true;
+}
+
+template <class TI>
+void PermeabilityFilter<TI>::set_flow_off(){
+    is_flow_set = false;
+}
+
+
+template <class TI>
+void PermeabilityFilter<TI>::set_disp_T(const Mat1f d0, const Mat1f d1, const string parallax)
+{
+    if(is_flow_set)
+    {
+        cerr << "Optical flow is already set in permeability filter, cannot set both flow and disparity." << endl;
+        exit(EXIT_FAILURE);
+    }
+
+    if(parallax != "ver" || parallax != "vertical" || parallax != "hor" || parallax != "horizontal") 
+	{
+		cerr << "Wrong parallax direction when setting disparity maps in permeabilty filter, should be ver or vertical or hor or horizontal" << endl;
+		exit(EXIT_FAILURE);
+	}
+
+    disp_t0 = d0;
+    disp_t1 = d1;
+    int h = d0.rows;
+    int w = d0.cols;
+
+    Mat map_x_32FC1 = Mat::zeros(h,w, CV_32FC1);
+    Mat map_y_32FC1 = Mat::zeros(h,w, CV_32FC1);
+
+    if(parallax == "hor" || parallax == "horizontal") 
+    {
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++){
+                map_x_32FC1.at<float>(y,x) = x - disp_t0(y,x);
+                map_y_32FC1.at<float>(y,x) = y;
+            }
+        }
+    }
+    else if(parallax == "ver" || parallax == "horizontal")
+    {
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++){
+                map_x_32FC1.at<float>(y,x) = x;
+                map_y_32FC1.at<float>(y,x) = y - disp_t0(y,x);
+            }
+        }
+    }
+    
+    map_t0_to_t1_x = Mat::zeros(h,w, CV_16SC2);
+    map_t0_to_t1_y = Mat::zeros(h,w, CV_16UC1);
+    convertMaps(map_x_32FC1, map_y_32FC1, map_t0_to_t1_x, map_t0_to_t1_y, CV_16SC2);
+
+    is_disp_set = true;
+}
+
+template <class TI>
+void PermeabilityFilter<TI>::set_disp_off(){
+    is_disp_set = false;
+}
+
 
 /* ---------------- Spatial filtering --------------------------- */
 template <class TI>
@@ -374,11 +496,21 @@ Mat_<TJ> PermeabilityFilter<TI>::filterXY(const Mat_<TJ> J)
 
 /* ---------------- Temporal filtering --------------------------- */
 template <class TI>
-void PermeabilityFilter<TI>::computeTemporalPermeability(const Mat2f flow_t0, const Mat2f flow_t1)
+void PermeabilityFilter<TI>::computeTemporalPermeability()
 {
     if(! is_I_T_set)
     {
         cerr << "Can not compute temporal permeability maps, spatial guide images are not defined." << endl;
+        exit (EXIT_FAILURE);
+    }
+    if(! is_flow_set && ! is_disp_set)
+    {
+        cerr << "Can not compute temporal permeability maps, optical flows / disparity maps are not defined." << endl;
+        exit (EXIT_FAILURE);
+    }
+    if( is_flow_set && is_disp_set)
+    {
+        cerr << "Can not compute temporal permeability maps, optical flows and disparity maps are both set." << endl;
         exit (EXIT_FAILURE);
     }
 
@@ -391,23 +523,60 @@ void PermeabilityFilter<TI>::computeTemporalPermeability(const Mat2f flow_t0, co
     Mat1f perm_gradient = Mat1f::zeros(h,w);
     Mat1f perm_photo = Mat1f::zeros(h,w);
 
+    // Equation (11) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
     Mat_<TI> I_t0_warp_2_t1 = Mat_<TI>::zeros(h,w);
+    remap(I_t0, I_t0_warp_2_t1, map_t0_to_t1_x, map_t0_to_t1_y, cv::INTER_CUBIC);
+    
+    Mat_<TI> diff_I2 = I_t1 - I_t0_warp_2_t1;
+    diff_I2 = diff_I2.mul(diff_I2); // Square
 
-    Mat map_x_32FC1 = Mat::zeros(h,w, CV_32FC1);
-    Mat map_y_32FC1 = Mat::zeros(h,w, CV_32FC1);
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++){
-            map_x_32FC1.at<float>(y,x) = x - flow_t0(y,x)[0];
-            map_y_32FC1.at<float>(y,x) = y - flow_t0(y,x)[1];
-        }
+    std::vector<Mat1f> diff_I2_channels(num_channels);
+    split(diff_I2, diff_I2_channels);
+    Mat1f sum_diff_I2 = Mat1f::zeros(h, w);
+    for (int c = 0; c < num_channels; c++) sum_diff_I2 = sum_diff_I2 + diff_I2_channels[c];
+    
+    sqrt(sum_diff_I2, sum_diff_I2);
+    
+    pow(abs(sum_diff_I2 / (sqrt_3 * sigma_photo)), alpha_photo, perm_photo);
+    perm_photo = 1 / (1 + perm_photo);
+
+
+    // Equation (12) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
+    Mat1f sum_diff_flow2;
+    if( is_flow_set )
+    {
+        Mat2f flow_XY_t0_warp_2_t1  = Mat2f::zeros(h,w);;
+        remap(flow_t0, flow_XY_t0_warp_2_t1, map_t0_to_t1_x, map_t0_to_t1_y, cv::INTER_CUBIC);
+        
+        Mat2f diff_flow2 = flow_t1 - flow_XY_t0_warp_2_t1;
+        diff_flow2 = diff_flow2.mul(diff_flow2);
+        
+        std::vector<Mat1f> diff_flow2_channels(num_channels_flow);
+        split(diff_flow2, diff_flow2_channels);
+    
+        sum_diff_flow2 = Mat1f::zeros(h, w);
+        for (int c = 0; c < num_channels_flow; c++) sum_diff_flow2 = sum_diff_flow2 + diff_flow2_channels[c];
     }
-    
-    Mat map_x_16SC2 = Mat::zeros(h,w, CV_16SC2);
-    Mat map_y_16UC1 = Mat::zeros(h,w, CV_16UC1);
-    convertMaps(map_x_32FC1, map_y_32FC1, map_x_16SC2, map_y_16UC1, CV_16SC2);
-    
-    remap(I_t0, I_t0_warp_2_t1, map_x_16SC2, map_y_16UC1, cv::INTER_CUBIC);
+    else if( is_disp_set )
+    {
+        Mat1f disp_XY_t0_warp_2_t1  = Mat1f::zeros(h,w);;
+        remap(disp_t0, disp_XY_t0_warp_2_t1, map_t0_to_t1_x, map_t0_to_t1_y, cv::INTER_CUBIC);
+        
+        Mat1f diff_disp2 = disp_t1 - disp_XY_t0_warp_2_t1;
+        sum_diff_flow2 = diff_disp2.mul(diff_disp2);
+    }
 
+    sqrt(sum_diff_flow2, sum_diff_flow2);
+    
+    pow(abs(sum_diff_flow2 / (sqrt_2 * sigma_grad)), alpha_grad, perm_gradient);
+    perm_gradient = 1 / (1 + perm_gradient);
+
+    perm_t = perm_photo.mul(perm_gradient);
+
+    perm_t.convertTo(perm_t, CV_32FC1);
+    is_perm_t_set = true;
+
+    // FOR DEBUG PURPOSE
     // Mat2f prev_map = Mat2f::zeros(h,w);
     // for (int y = 0; y < h; y++) {
     //     for (int x = 0; x < w; x++){
@@ -430,60 +599,98 @@ void PermeabilityFilter<TI>::computeTemporalPermeability(const Mat2f flow_t0, co
     // imwrite("original_image" + oss.str() + ".png", I_org);
     // imwrite("warp_image" + oss.str() + ".png", I_warp);
 
-    // Equation (11) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
-    Mat_<TI> diff_I2 = I_t1 - I_t0_warp_2_t1;
-    diff_I2 = diff_I2.mul(diff_I2); // Square
-
-    std::vector<Mat1f> diff_I2_channels(num_channels);
-    split(diff_I2, diff_I2_channels);
-    Mat1f sum_diff_I2 = Mat1f::zeros(h, w);
-    for (int c = 0; c < num_channels; c++) sum_diff_I2 = sum_diff_I2 + diff_I2_channels[c];
-    
-    sqrt(sum_diff_I2, sum_diff_I2);
-    
-    pow(abs(sum_diff_I2 / (sqrt_3 * sigma_photo)), alpha_photo, perm_photo);
-    perm_photo = 1 / (1 + perm_photo);
-
-
-    Mat2f flow_XY_t0_warp_2_t1  = Mat2f::zeros(h,w);;
-    remap(flow_t0, flow_XY_t0_warp_2_t1,  map_x_16SC2, map_y_16UC1, cv::INTER_CUBIC);
-       
-    // Equation (12) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
-    Mat2f diff_flow2 = flow_t1 - flow_XY_t0_warp_2_t1;
-    diff_flow2 = diff_flow2.mul(diff_flow2);
-    
-    std::vector<Mat1f> diff_flow2_channels(num_channels_flow);
-    split(diff_flow2, diff_flow2_channels);
-    Mat1f sum_diff_flow2 = Mat1f::zeros(h, w);
-    for (int c = 0; c < num_channels_flow; c++) sum_diff_flow2 = sum_diff_flow2 + diff_flow2_channels[c];
-    
-    sqrt(sum_diff_flow2, sum_diff_flow2);
-    
-    pow(abs(sum_diff_flow2 / (sqrt_2 * sigma_grad)), alpha_grad, perm_gradient);
-    perm_gradient = 1 / (1 + perm_gradient);
-
-    Mat perm_temporalMat = perm_photo.mul(perm_gradient);
-
-    perm_temporalMat.convertTo(perm_t, CV_32FC1);
-    is_perm_t_set = true;
 }
 
 
+
+// For single-channel target images J
 template <class TI>
-template <class TJ>
-Mat_<TJ> PermeabilityFilter<TI>::filterT(   const Mat_<TJ> J_t0_XYT, const Mat_<TJ> J_t1_XY,
-                                            const Mat2f flow_t0,
-                                            Mat_<TJ> &l_t0_num, Mat_<TJ> &l_t0_den) // Accumulated left pass buffer
+Mat1f PermeabilityFilter<TI>::filterT(const Mat1f J_t0_XYT, const Mat1f J_t1_XY, Mat1f &l_t0_num, Mat1f &l_t0_den)
 {
     if(! is_perm_t_set)
     {
         cerr << "Can not compute temporal permeability filtering, temporal permeability map is not computed." << endl;
         exit (EXIT_FAILURE);
-        // return Mat1f::zeros(J.rows, J.cols);
+    }
+    if(! is_flow_set && ! is_disp_set)
+    {
+        cerr << "Can not compute temporal permeability filtering, optical flows / disparity maps are not defined." << endl;
+        exit (EXIT_FAILURE);
+    }
+    if( is_flow_set && is_disp_set)
+    {
+        cerr << "Can not compute temporal permeability filtering, optical flows and disparity maps are both set." << endl;
+        exit (EXIT_FAILURE);
     }
 
-    //store result variable
-    vector<Mat_<TJ> > result;
+    // Input image
+    int h = J_t1_XY.rows;
+    int w = J_t1_XY.cols;
+    int num_channels_flow = J_t1_XY.channels();
+
+    Mat1f J_t1_XYT;
+    J_t1_XY.copyTo(J_t1_XYT);
+
+    Mat1f l_t1_num = Mat1f::zeros(h, w);
+    Mat1f l_t1_den = Mat1f::zeros(h, w);
+
+    for (int i = 0; i < iter_T; ++i)
+    {
+        // temporal filtering
+        // no need to do pixel-wise operation (via J(y,x)) since all operation is based on same location pixels
+        // forward pass & combining
+        Mat1f temp_l_t0_num = l_t0_num + J_t0_XYT;
+       
+        Mat1f temp_l_t0_num_warp_2_t1 = Mat1f::zeros(h, w);
+        //temp_l_t0_num = l_t0_num + J_t0_XYT;
+        remap(temp_l_t0_num, temp_l_t0_num_warp_2_t1, map_t0_to_t1_x, map_t0_to_t1_y, cv::INTER_CUBIC);
+        
+        l_t1_num = perm_t.mul(temp_l_t0_num_warp_2_t1);
+
+        
+        Mat1f temp_l_t0_den = l_t0_den + 1.0;
+        
+        Mat1f temp_l_t0_den_warp_2_t1 = Mat1f::zeros(h, w);
+        remap(temp_l_t0_den, temp_l_t0_den_warp_2_t1, map_t0_to_t1_x, map_t0_to_t1_y, cv::INTER_CUBIC);
+
+        l_t1_den = perm_t.mul(temp_l_t0_den_warp_2_t1);
+
+        J_t1_XYT = (l_t1_num + (1 - lambda_T) * J_t1_XY) / (l_t1_den + 1.0);
+        
+        l_t0_num = l_t1_num;
+        l_t0_den = l_t1_den;
+    }
+
+    return J_t1_XYT;
+}
+
+
+
+// For multi-channel target images J
+template <class TI>
+template <class TJ>
+Mat_<TJ> PermeabilityFilter<TI>::filterT(const Mat_<TJ> J_t0_XYT, const Mat_<TJ> J_t1_XY, Mat_<TJ> &l_t0_num, Mat_<TJ> &l_t0_den)
+{
+    if(! is_perm_t_set)
+    {
+        cerr << "Can not compute temporal permeability filtering, temporal permeability map is not computed." << endl;
+        exit (EXIT_FAILURE);
+    }
+    if(! is_flow_set && ! is_disp_set)
+    {
+        cerr << "Can not compute temporal permeability filtering, optical flows / disparity maps are not defined." << endl;
+        exit (EXIT_FAILURE);
+    }
+    if( is_flow_set && is_disp_set)
+    {
+        cerr << "Can not compute temporal permeability filtering, optical flows and disparity maps are both set." << endl;
+        exit (EXIT_FAILURE);
+    }
+    // if(! is_l_init)
+    // {
+    //     cerr << "Can not compute temporal permeability filtering, left pass accumulated buffer are not initialized." << endl;
+    //     exit (EXIT_FAILURE);
+    // }
 
     // Input image
     int h = J_t1_XY.rows;
@@ -498,59 +705,45 @@ Mat_<TJ> PermeabilityFilter<TI>::filterT(   const Mat_<TJ> J_t0_XYT, const Mat_<
 
     for (int i = 0; i < iter_T; ++i)
     {
-        //change flow file format to remap function required format
-        Mat map_x_32FC1 = Mat::zeros(h,w, CV_32FC1);
-        Mat map_y_32FC1 = Mat::zeros(h,w, CV_32FC1);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++){
-                map_x_32FC1.at<float>(y,x) = x - flow_t0(y,x)[0];
-                map_y_32FC1.at<float>(y,x) = y - flow_t0(y,x)[1];
-            }
-        }
-        
-        Mat map_x_16SC2 = Mat::zeros(h,w, CV_16SC2);
-        Mat map_y_16UC1 = Mat::zeros(h,w, CV_16UC1);
-        convertMaps(map_x_32FC1, map_y_32FC1, map_x_16SC2, map_y_16UC1, CV_16SC2);
-
         // temporal filtering
         // no need to do pixel-wise operation (via J(y,x)) since all operation is based on same location pixels
         // forward pass & combining
-        Mat_<TJ> temp_l_t0 = Mat_<TJ>::zeros(h, w);
-        Mat_<TJ> temp_l_t0_warp_2_t1 = Mat_<TJ>::zeros(h, w);
+        Mat_<TJ> temp_l_t0_num = Mat_<TJ>::zeros(h, w);
+        Mat_<TJ> temp_l_t0_num_warp_2_t1 = Mat_<TJ>::zeros(h, w);
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 for (int c = 0; c < num_channels_flow; c++) {
-                    temp_l_t0(y,x)[c] = l_t0_num(y,x)[c] + J_t0_XYT(y,x)[c];
+                    temp_l_t0_num(y,x)[c] = l_t0_num(y,x)[c] + J_t0_XYT(y,x)[c];
                 }
             }
         }
-        //temp_l_t0 = l_t0_num + J_t0_XYT;
-        remap(temp_l_t0, temp_l_t0_warp_2_t1, map_x_16SC2, map_y_16UC1, cv::INTER_CUBIC);
+        //temp_l_t0_num = l_t0_num + J_t0_XYT;
+        remap(temp_l_t0_num, temp_l_t0_num_warp_2_t1, map_t0_to_t1_x, map_t0_to_t1_y, cv::INTER_CUBIC);
         
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 for (int c = 0; c < num_channels_flow; c++) {
-                    l_t1_num(y,x)[c] = perm_t(y,x) * temp_l_t0_warp_2_t1(y,x)[c];
-                }
-            }
-        }
-        
-        Mat_<TJ> temp_l_t_normal_prev = Mat_<TJ>::zeros(h, w);
-        Mat_<TJ> temp_l_t_normal_prev_warped = Mat_<TJ>::zeros(h, w);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                for (int c = 0; c < num_channels_flow; c++) {
-                    temp_l_t_normal_prev(y,x)[c] = l_t0_den(y,x)[c] + 1.0;
+                    l_t1_num(y,x)[c] = perm_t(y,x) * temp_l_t0_num_warp_2_t1(y,x)[c];
                 }
             }
         }
         
-        remap(temp_l_t_normal_prev, temp_l_t_normal_prev_warped, map_x_16SC2, map_y_16UC1, cv::INTER_CUBIC);
+        Mat_<TJ> temp_l_t0_den = Mat_<TJ>::zeros(h, w);
+        Mat_<TJ> temp_l_t0_den_warp_2_t1 = Mat_<TJ>::zeros(h, w);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                for (int c = 0; c < num_channels_flow; c++) {
+                    temp_l_t0_den(y,x)[c] = l_t0_den(y,x)[c] + 1.0;
+                }
+            }
+        }
+        
+        remap(temp_l_t0_den, temp_l_t0_den_warp_2_t1, map_t0_to_t1_x, map_t0_to_t1_y, cv::INTER_CUBIC);
         
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 for (int c = 0; c < num_channels_flow; c++) {
-                    l_t1_den(y,x)[c] = perm_t(y,x) * temp_l_t_normal_prev_warped(y,x)[c];
+                    l_t1_den(y,x)[c] = perm_t(y,x) * temp_l_t0_den_warp_2_t1(y,x)[c];
                     J_t1_XYT(y,x)[c] = (l_t1_num(y,x)[c] + (1 - lambda_T) * J_t1_XY(y,x)[c]) / (l_t1_den(y,x)[c]+ 1.0);
                 }
             }

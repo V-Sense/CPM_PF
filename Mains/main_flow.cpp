@@ -442,21 +442,25 @@ int main(int argc, char** argv)
     // temporal filter
     CTimer tPF_time;
     std::cout << "Running temporal permeability filter... " << flush;
-    Mat2f l_t0_num = Mat2f::zeros(height, width);
-    Mat2f l_t0_den = Mat2f::zeros(height, width);
-    
+        
     vector<Mat2f> pf_temporal_flow_vec(nb_imgs);
     pf_temporal_flow_vec[0] = pf_spatial_flow_vec[0];
 
+    // PF.init_T<Vec2f>(height, width); // Initializes PF internal accumulated buffer before loop
+    // Init PF internal accumulated buffer before loop here, a bit ugly but best solution to handle multiple types for J
+    Mat2f l_flow_t0_num = Mat2f::zeros(height, width);
+    Mat2f l_flow_t0_den = Mat2f::zeros(height, width);
     for (size_t i = 1; i < nb_imgs; ++i)
     {
         PF.set_I_T(input_RGB_images_vec[i-1], input_RGB_images_vec[i]);
+        
 
         Mat2f flow_t0_XY = pf_temporal_flow_vec[i - 1];
         Mat2f flow_t1_XY = pf_spatial_flow_vec[i];
+        PF.set_flow_T(flow_t0_XY, flow_t1_XY);
 
-        PF.computeTemporalPermeability(flow_t0_XY, flow_t1_XY);
-        pf_temporal_flow_vec[i] = PF.filterT<Vec2f>(flow_t0_XY, flow_t1_XY, flow_t0_XY, l_t0_num, l_t0_den);
+        PF.computeTemporalPermeability();
+        pf_temporal_flow_vec[i] = PF.filterT<Vec2f>(flow_t0_XY, flow_t1_XY, l_flow_t0_num, l_flow_t0_den);
     }
     tPF_time.toc(" done in: ");
 
