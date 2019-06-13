@@ -26,9 +26,23 @@ template <class TI>
 class PermeabilityFilter
 {
 private:
-    
+    // Guide images
+    Mat_<TI> I_XY; // spatial
+    Mat_<TI> I_T0, I_T1; // temporal
+    bool is_I_XY_set, is_I_T_set;
+
+    // Permeability maps
+    bool is_perm_xy_set, is_perm_t_set;
+        
 public:
     PermeabilityFilter(); // Initializes default parameters
+
+    // Guide images
+    void set_I_XY(const Mat_<TI> I); // spatial
+    void set_I_T(const Mat_<TI> I0, const Mat_<TI> I1); // temporal
+
+    // Permeability maps
+    Mat1f perm_h, perm_v, perm_t;
 
     // Spatial parameters
     int iter_XY;
@@ -36,11 +50,12 @@ public:
     float sigma_XY;
     float alpha_XY;
 
-    Mat1f computeSpatialPermeability(Mat_<TI> src);
+    Mat1f computeSpatialPermeability(const Mat_<TI> I);
+    void computeSpatialPermeabilityMaps();
     
-    Mat1f filterXY(const Mat_<TI> I, const Mat1f J); // For single-channel target image J
+    Mat1f filterXY(const Mat1f J); // For single-channel target image J
     template <class TJ>
-    Mat_<TJ> filterXY(const Mat_<TI> I, const Mat_<TJ> J); // For multi-channel target image J
+    Mat_<TJ> filterXY(const Mat_<TJ> J); // For multi-channel target image J
 
 
     // Temporal parameters
@@ -51,19 +66,18 @@ public:
     float alpha_photo;
     float alpha_grad;
     
-    Mat1f computeTemporalPermeability(const Mat_<TI> I, const Mat_<TI> I_prev, const Mat2f flow_XY, const Mat2f flow_prev_XYT);
+    void computeTemporalPermeability(const Mat2f flow_XY, const Mat2f flow_prev_XYT);
     
     template <class TJ>
-    vector<Mat_<TJ> > filterT(  const Mat_<TI> I, const Mat_<TI> I_prev, 
-                                    const Mat_<TJ> J_XY, const Mat_<TJ> J_prev_XY,
-                                    const Mat2f flow_XY, const Mat2f flow_prev_XYT,
-                                    const Mat_<TJ> l_t_prev, const Mat_<TJ> l_t_normal_prev);
+    vector<Mat_<TJ> > filterT(  const Mat_<TJ> J_XY, const Mat_<TJ> J_prev_XY,
+                                const Mat2f flow_XY, const Mat2f flow_prev_XYT,
+                                const Mat_<TJ> l_t_prev, const Mat_<TJ> l_t_normal_prev);
 };
 #endif //! PF_H
 
 
 
-
+/* ---------------- Set parameters --------------------------- */
 template <class TI>
 PermeabilityFilter<TI>::PermeabilityFilter()
 {
@@ -81,13 +95,38 @@ PermeabilityFilter<TI>::PermeabilityFilter()
     sigma_grad = 1.0f;
     alpha_photo = 2.0f;
     alpha_grad = 2.0f;
+
+    // Guide images
+    is_I_XY_set = false;
+    is_I_T_set = false;
+
+    // Permeability maps
+    is_perm_xy_set = false;
+    is_perm_t_set = false;
+}
+
+// Guide images
+// spatial
+template <class TI>
+void PermeabilityFilter<TI>::set_I_XY(const Mat_<TI> I)
+{
+    I_XY = I;
+    is_I_XY_set = true;
+}
+
+// temporal
+template <class TI>
+void PermeabilityFilter<TI>::set_I_T(const Mat_<TI> I0, const Mat_<TI> I1)
+{
+    I_T0 = I0;
+    I_T1 = I1;
+    is_I_T_set = true;
 }
 
 /* ---------------- Spatial filtering --------------------------- */
 template <class TI>
-Mat1f PermeabilityFilter<TI>::computeSpatialPermeability(Mat_<TI> src)
+Mat1f PermeabilityFilter<TI>::computeSpatialPermeability(Mat_<TI> I)
 {
-    Mat_<TI> I = src;
     int h = I.rows;
     int w = I.cols;
     int num_channels = I.channels();
@@ -123,30 +162,46 @@ Mat1f PermeabilityFilter<TI>::computeSpatialPermeability(Mat_<TI> src)
     return result;
 }
 
+template <class TI>
+void PermeabilityFilter<TI>::computeSpatialPermeabilityMaps()
+{
+    if(! is_I_XY_set)
+    {
+        cerr << "Can not compute spatial permeability maps, spatial guide image is not defined." << endl;
+        exit (EXIT_FAILURE);
+        // return;
+    }
+
+    //compute horizontal filtered image
+    perm_h = computeSpatialPermeability(I_XY);
+
+    //compute vertical filtered image
+    perm_v = computeSpatialPermeability(I_XY.t());
+    perm_v = perm_v.t();
+    
+    is_perm_xy_set = true;
+}
+
 
 // For single-channel target image J
 template <class TI>
-Mat1f PermeabilityFilter<TI>::filterXY(const Mat_<TI> I, const Mat1f J)
+Mat1f PermeabilityFilter<TI>::filterXY(const Mat1f J)
 {
+    if(! is_perm_xy_set)
+    {
+        cerr << "Can not compute spatial permeability filtering, spatial permeability maps are not computed." << endl;
+        exit (EXIT_FAILURE);
+        // return Mat1f::zeros(J.rows, J.cols);
+    }
+
     // Input image
-    int h = I.rows;
-    int w = I.cols;
+    int h = J.rows;
+    int w = J.cols;
 
     // spatial filtering
     Mat1f J_XY;
     J.copyTo(J_XY);
     
-    //compute spatial permeability
-    //compute horizontal filtered image
-    Mat1f perm_horizontal;
-    Mat1f perm_vertical;
-    perm_horizontal = computeSpatialPermeability(I);
-
-    //compute vertical filtered image
-    Mat_<TI> I_t = I.t();
-    perm_vertical = computeSpatialPermeability(I_t);
-    perm_vertical = perm_vertical.t();
-
     for (int i = 0; i < iter_XY; ++i) {
         // spatial filtering
         // Equation (5) and (6) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
@@ -162,14 +217,14 @@ Mat1f PermeabilityFilter<TI>::filterXY(const Mat_<TI> I, const Mat1f J)
 
             // left pass
             for (int x = 1; x <= w-1; x++) {
-                    lp(0, x) = perm_horizontal(y, x - 1) * (lp(0, x - 1) + J_XY(y, x - 1));
-                    lp_normal(0, x) = perm_horizontal(y, x - 1) * (lp_normal(0, x - 1) + 1.0);
+                    lp(0, x) = perm_h(y, x - 1) * (lp(0, x - 1) + J_XY(y, x - 1));
+                    lp_normal(0, x) = perm_h(y, x - 1) * (lp_normal(0, x - 1) + 1.0);
             }
         
             // right pass & combining
             for (int x = w-2; x >= 0; x--) {
-                rp(0, x) = perm_horizontal(y, x) * (rp(0, x + 1) + J_XY(y, x + 1));
-                rp_normal(0, x) = perm_horizontal(y, x) * (rp_normal(0, x + 1) + 1.0);
+                rp(0, x) = perm_h(y, x) * (rp(0, x + 1) + J_XY(y, x + 1));
+                rp_normal(0, x) = perm_h(y, x) * (rp_normal(0, x + 1) + 1.0);
                 
                 //combination in right pass loop on-the-fly & deleted source image I
                 if (x == w-2) {
@@ -192,14 +247,14 @@ Mat1f PermeabilityFilter<TI>::filterXY(const Mat_<TI> I, const Mat1f J)
 
             // (left pass) down pass
             for (int y = 1; y <= h-1; y++) {
-                    dp(y, 0) = perm_vertical(y - 1, x) * (dp(y - 1, 0) + J_XY(y - 1, x));
-                    dp_normal(y, 0) = perm_vertical(y - 1, x) * (dp_normal(y - 1, 0) + 1.0);
+                    dp(y, 0) = perm_v(y - 1, x) * (dp(y - 1, 0) + J_XY(y - 1, x));
+                    dp_normal(y, 0) = perm_v(y - 1, x) * (dp_normal(y - 1, 0) + 1.0);
                 }
     
             // (right pass) up pass & combining
             for (int y = h-2; y >= 0; y--) {
-                up(y, 0) = perm_vertical(y, x) * (up(y + 1, 0) + J_XY(y + 1, x));
-                up_normal(y, 0) = perm_vertical(y, x) * (up_normal(y + 1, 0) + 1.0);
+                up(y, 0) = perm_v(y, x) * (up(y + 1, 0) + J_XY(y + 1, x));
+                up_normal(y, 0) = perm_v(y, x) * (up_normal(y + 1, 0) + 1.0);
 
                 if(y == h-2) {
                     J_XY(y+1, x) = (dp(y+1, 0) + (1 - lambda_XY) * J_XY(y+1, x) + up(y+1, 0)) / (dp_normal(y+1, 0) + 1.0 + up_normal(y+1, 0));
@@ -215,11 +270,18 @@ Mat1f PermeabilityFilter<TI>::filterXY(const Mat_<TI> I, const Mat1f J)
 // For multi-channel target image J
 template <class TI>
 template <class TJ>
-Mat_<TJ> PermeabilityFilter<TI>::filterXY(const Mat_<TI> I, const Mat_<TJ> J)
+Mat_<TJ> PermeabilityFilter<TI>::filterXY(const Mat_<TJ> J)
 {
+    if(! is_perm_xy_set)
+    {
+        cerr << "Can not compute spatial permeability filtering, spatial permeability maps are not computed." << endl;
+        exit (EXIT_FAILURE);
+        // return Mat1f::zeros(J.rows, J.cols);
+    }
+
     // Input image
-    int h = I.rows;
-    int w = I.cols;
+    int h = J.rows;
+    int w = J.cols;
 
     // spatial filtering
     int num_chs = J.channels();
@@ -227,17 +289,6 @@ Mat_<TJ> PermeabilityFilter<TI>::filterXY(const Mat_<TI> I, const Mat_<TJ> J)
     J.copyTo(J_XY);
     
     
-    //compute spatial permeability
-    //compute horizontal filtered image
-    Mat1f perm_horizontal;
-    Mat1f perm_vertical;
-    perm_horizontal = computeSpatialPermeability(I);
-
-    //compute vertical filtered image
-    Mat_<TI> I_t = I.t();
-    perm_vertical = computeSpatialPermeability(I_t);
-    perm_vertical = perm_vertical.t();
-
     for (int i = 0; i < iter_XY; ++i) {
         // spatial filtering
         // Equation (5) and (6) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
@@ -254,14 +305,14 @@ Mat_<TJ> PermeabilityFilter<TI>::filterXY(const Mat_<TI> I, const Mat_<TJ> J)
             for (int c = 0; c < num_chs; c++) {
                 // left pass
                 for (int x = 1; x <= w-1; x++) {
-                        lp(0, x)[c] = perm_horizontal(y, x - 1) * (lp(0, x - 1)[c] + J_XY(y, x - 1)[c]);
-                        lp_normal(0, x)[c] = perm_horizontal(y, x - 1) * (lp_normal(0, x - 1)[c] + 1.0);
+                        lp(0, x)[c] = perm_h(y, x - 1) * (lp(0, x - 1)[c] + J_XY(y, x - 1)[c]);
+                        lp_normal(0, x)[c] = perm_h(y, x - 1) * (lp_normal(0, x - 1)[c] + 1.0);
                 }
             
                 // right pass & combining
                 for (int x = w-2; x >= 0; x--) {
-                    rp(0, x)[c] = perm_horizontal(y, x) * (rp(0, x + 1)[c] + J_XY(y, x + 1)[c]);
-                    rp_normal(0, x)[c] = perm_horizontal(y, x) * (rp_normal(0, x + 1)[c] + 1.0);
+                    rp(0, x)[c] = perm_h(y, x) * (rp(0, x + 1)[c] + J_XY(y, x + 1)[c]);
+                    rp_normal(0, x)[c] = perm_h(y, x) * (rp_normal(0, x + 1)[c] + 1.0);
                     
                     //combination in right pass loop on-the-fly & deleted source image I
                     if (x == w-2) {
@@ -285,14 +336,14 @@ Mat_<TJ> PermeabilityFilter<TI>::filterXY(const Mat_<TI> I, const Mat_<TJ> J)
             for (int c = 0; c < num_chs; c++) {
                 // (left pass) down pass
                 for (int y = 1; y <= h-1; y++) {
-                        dp(y, 0)[c] = perm_vertical(y - 1, x) * (dp(y - 1, 0)[c] + J_XY(y - 1, x)[c]);
-                        dp_normal(y, 0)[c] = perm_vertical(y - 1, x) * (dp_normal(y - 1, 0)[c] + 1.0);
+                        dp(y, 0)[c] = perm_v(y - 1, x) * (dp(y - 1, 0)[c] + J_XY(y - 1, x)[c]);
+                        dp_normal(y, 0)[c] = perm_v(y - 1, x) * (dp_normal(y - 1, 0)[c] + 1.0);
                     }
         
                 // (right pass) up pass & combining
                 for (int y = h-2; y >= 0; y--) {
-                    up(y, 0)[c] = perm_vertical(y, x) * (up(y + 1, 0)[c] + J_XY(y + 1, x)[c]);
-                    up_normal(y, 0)[c] = perm_vertical(y, x) * (up_normal(y + 1, 0)[c] + 1.0);
+                    up(y, 0)[c] = perm_v(y, x) * (up(y + 1, 0)[c] + J_XY(y + 1, x)[c]);
+                    up_normal(y, 0)[c] = perm_v(y, x) * (up_normal(y + 1, 0)[c] + 1.0);
 
                     if(y == h-2) {
                         J_XY(y+1, x)[c] = (dp(y+1, 0)[c] + (1 - lambda_XY) * J_XY(y+1, x)[c] + up(y+1, 0)[c]) / (dp_normal(y+1, 0)[c] + 1.0 + up_normal(y+1, 0)[c]);
@@ -309,18 +360,25 @@ Mat_<TJ> PermeabilityFilter<TI>::filterXY(const Mat_<TI> I, const Mat_<TJ> J)
 
 /* ---------------- Temporal filtering --------------------------- */
 template <class TI>
-Mat1f PermeabilityFilter<TI>::computeTemporalPermeability(const Mat_<TI> I, const Mat_<TI> I_prev, const Mat2f flow_XY, const Mat2f flow_prev_XYT)
+void PermeabilityFilter<TI>::computeTemporalPermeability(const Mat2f flow_XY, const Mat2f flow_prev_XYT)
 {
-    int h = I.rows;
-    int w = I.cols;
-    int num_channels = I.channels();
+    if(! is_I_T_set)
+    {
+        cerr << "Can not compute temporal permeability maps, spatial guide images are not defined." << endl;
+        exit (EXIT_FAILURE);
+        // return;
+    }
+
+    int h = I_T1.rows;
+    int w = I_T1.cols;
+    int num_channels = I_T1.channels();
     int num_channels_flow = flow_XY.channels();
 
     Mat1f perm_temporal = Mat1f::zeros(h,w);
     Mat1f perm_gradient = Mat1f::zeros(h,w);
     Mat1f perm_photo = Mat1f::zeros(h,w);
 
-    Mat_<TI> I_prev_warped = Mat_<TI>::zeros(h,w);
+    Mat_<TI> I_T0_warped = Mat_<TI>::zeros(h,w);
 
     Mat prev_map_x = Mat::zeros(h,w, CV_32FC1);
     Mat prev_map_y = Mat::zeros(h,w, CV_32FC1);
@@ -335,7 +393,7 @@ Mat1f PermeabilityFilter<TI>::computeTemporalPermeability(const Mat_<TI> I, cons
     Mat map_y = Mat::zeros(h,w, CV_16UC1);
     convertMaps(prev_map_x, prev_map_y, map_x, map_y, CV_16SC2);
     
-    remap(I_prev, I_prev_warped, map_x, map_y, cv::INTER_CUBIC);
+    remap(I_T0, I_T0_warped, map_x, map_y, cv::INTER_CUBIC);
 
     // Mat2f prev_map = Mat2f::zeros(h,w);
     // for (int y = 0; y < h; y++) {
@@ -346,11 +404,11 @@ Mat1f PermeabilityFilter<TI>::computeTemporalPermeability(const Mat_<TI> I, cons
     // }
     // std::vector<Mat1f> prev_maps(num_channels_flow);
     // split(prev_map, prev_maps);
-    // remap(I_prev, I_prev_warped, prev_maps[0], prev_maps[1], cv::INTER_CUBIC);
+    // remap(I_prev, I_T0_warped, prev_maps[0], prev_maps[1], cv::INTER_CUBIC);
 
     // Mat I_org, I_warp;
     // I.convertTo(I_org, CV_8UC3, 255);
-    // I_prev_warped.convertTo(I_warp, CV_8UC3, 255);
+    // I_T0_warped.convertTo(I_warp, CV_8UC3, 255);
     
     // int rnum = rand();
     // std::ostringstream oss;
@@ -360,7 +418,7 @@ Mat1f PermeabilityFilter<TI>::computeTemporalPermeability(const Mat_<TI> I, cons
     // imwrite("warp_image" + oss.str() + ".png", I_warp);
 
     // Equation (11) in paper "Towards Edge-Aware Spatio-Temporal Filtering in Real-Time"
-    Mat_<TI> diff_I = I - I_prev_warped;
+    Mat_<TI> diff_I = I_T1 - I_T0_warped;
     std::vector<Mat1f> diff_I_channels(num_channels);
     split(diff_I, diff_I_channels);
     Mat1f sum_diff_I = Mat1f::zeros(h, w);
@@ -397,25 +455,31 @@ Mat1f PermeabilityFilter<TI>::computeTemporalPermeability(const Mat_<TI> I, cons
     perm_gradient = 1 / (1 + perm_gradient);
 
     Mat perm_temporalMat = perm_photo.mul(perm_gradient);
-    perm_temporalMat.convertTo(perm_temporal, CV_32FC1);
 
-    return perm_temporal;
+    perm_temporalMat.convertTo(perm_t, CV_32FC1);
+    is_perm_t_set = true;
 }
+
 
 template <class TI>
 template <class TJ>
-vector<Mat_<TJ> > PermeabilityFilter<TI>::filterT(  const Mat_<TI> I, const Mat_<TI> I_prev, 
-                                                    const Mat_<TJ> J_XY, const Mat_<TJ> J_prev_XY,
+vector<Mat_<TJ> > PermeabilityFilter<TI>::filterT(  const Mat_<TJ> J_XY, const Mat_<TJ> J_prev_XY,
                                                     const Mat2f flow_XY, const Mat2f flow_prev_XYT,
                                                     const Mat_<TJ> l_t_prev, const Mat_<TJ> l_t_normal_prev)
 {
+    if(! is_perm_t_set)
+    {
+        cerr << "Can not compute temporal permeability filtering, temporal permeability map is not computed." << endl;
+        exit (EXIT_FAILURE);
+        // return Mat1f::zeros(J.rows, J.cols);
+    }
+
     //store result variable
     vector<Mat_<TJ> > result;
 
     // Input image
-    int h = I.rows;
-    int w = I.cols;
-    int num_channels = I.channels();
+    int h = J_XY.rows;
+    int w = J_XY.cols;
     int num_channels_flow = J_XY.channels();
 /*
     // Joint image (optional).
@@ -430,11 +494,6 @@ vector<Mat_<TJ> > PermeabilityFilter<TI>::filterT(  const Mat_<TI> I, const Mat_
 
     Mat_<TJ> J_XYT;
     J_XY.copyTo(J_XYT);
-
-    // temporal filtering
-    //compute temporal permeability in this iteration
-    Mat1f perm_temporal;
-    perm_temporal = computeTemporalPermeability(I, I_prev, flow_XY, flow_prev_XYT);
 
 
     for (int i = 0; i < iter_T; ++i)
@@ -472,7 +531,7 @@ vector<Mat_<TJ> > PermeabilityFilter<TI>::filterT(  const Mat_<TI> I, const Mat_
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 for (int c = 0; c < num_channels_flow; c++) {
-                    l_t(y,x)[c] = perm_temporal(y,x) * temp_l_t_prev_warped(y,x)[c];
+                    l_t(y,x)[c] = perm_t(y,x) * temp_l_t_prev_warped(y,x)[c];
                 }
             }
         }
@@ -492,7 +551,7 @@ vector<Mat_<TJ> > PermeabilityFilter<TI>::filterT(  const Mat_<TI> I, const Mat_
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 for (int c = 0; c < num_channels_flow; c++) {
-                    l_t_normal(y,x)[c] = perm_temporal(y,x) * temp_l_t_normal_prev_warped(y,x)[c];
+                    l_t_normal(y,x)[c] = perm_t(y,x) * temp_l_t_normal_prev_warped(y,x)[c];
                     J_XYT(y,x)[c] = (l_t(y,x)[c] + (1 - lambda_T) * J_XY(y,x)[c]) / (l_t_normal(y,x)[c]+ 1.0);
                 }
             }

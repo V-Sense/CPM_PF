@@ -215,8 +215,7 @@ int main(int argc, char** argv)
     vector<string> input_images_name_vec(nb_imgs);
 
     if(ang_dir == "ver") cpm_pf_params.CPM_stereo_flag = 0;
-
-     
+    
     /* ---------------- READ INPUT RBG IMAGES --------------------------- */
     CTimer CPM_input_time;
     std::cout << "Reading input RGB images... " << endl;
@@ -252,6 +251,12 @@ int main(int argc, char** argv)
         
         Mat3f tmp_img3f;
         tmp_img.convertTo(tmp_img3f, CV_32F, 1/255.);
+
+        // if(ang_dir == "ver") // Rotate image 90 degress and process them as horizontal parallax (allows to use stereo_flag=1 for CPM)
+        // {
+        //     cv::rotate(tmp_img3f, tmp_img3f, cv::ROTATE_90_COUNTERCLOCKWISE);
+        // }
+
         input_RGB_images_vec[i] = tmp_img3f;
     }
     CPM_input_time.toc(" done in: ");
@@ -362,7 +367,7 @@ int main(int argc, char** argv)
     vector<Mat2f> pf_spatial_flow_vec(nb_imgs);
 
     for (size_t i = 0; i < nb_imgs - 1; ++i) {
-        Mat3f target_img = input_RGB_images_vec[i];
+        PF.set_I_XY(input_RGB_images_vec[i]); // Set guide image
         Mat2f flow_forward  = cpm_flow_fwd[i];
         Mat2f flow_backward = cpm_flow_bwd[i];
 
@@ -370,7 +375,8 @@ int main(int argc, char** argv)
         Mat1f flow_confidence = getFlowConfidence(flow_forward, flow_backward);
 
         // Apply spatial permeability filter on confidence
-        Mat1f flow_confidence_filtered = PF.filterXY(target_img, flow_confidence);
+        PF.computeSpatialPermeabilityMaps();
+        Mat1f flow_confidence_filtered = PF.filterXY(flow_confidence);
 
 
         // multiply initial confidence and sparse flow
@@ -384,10 +390,10 @@ int main(int argc, char** argv)
         }
 
         //filter confidenced sparse flow
-        Mat2f confidenced_flow_XY = PF.filterXY<Vec2f>(target_img, confidenced_flow);
+        Mat2f confidenced_flow_XY = PF.filterXY<Vec2f>(confidenced_flow);
 
         // compute normalized spatial filtered flow FXY by division
-        Mat2f normalized_confidenced_flow_filtered = Mat2f::zeros(target_img.rows,target_img.cols);
+        Mat2f normalized_confidenced_flow_filtered = Mat2f::zeros(confidenced_flow_XY.rows,confidenced_flow_XY.cols);
         for(int y = 0; y < confidenced_flow_XY.rows; y++) {
             for(int x = 0; x < confidenced_flow_XY.cols; x++) {
                 for(int c = 0; c < confidenced_flow_XY.channels(); c++) {
@@ -400,7 +406,7 @@ int main(int argc, char** argv)
     }
 
     // For the last image, associate the backward flow with a minus sign
-    Mat3f target_img = input_RGB_images_vec[nb_imgs - 1];
+    PF.set_I_XY(input_RGB_images_vec[nb_imgs-1]); // Set guide image
     Mat2f flow_forward  = cpm_flow_fwd[nb_imgs - 2];
     Mat2f flow_backward = cpm_flow_bwd[nb_imgs - 2];
 
@@ -408,7 +414,8 @@ int main(int argc, char** argv)
     Mat1f flow_confidence = getFlowConfidence(flow_backward, flow_forward);
 
     // Apply spatial permeability filter on confidence
-    Mat1f flow_confidence_filtered = PF.filterXY(target_img, flow_confidence);
+    PF.computeSpatialPermeabilityMaps();
+    Mat1f flow_confidence_filtered = PF.filterXY(flow_confidence);
 
 
     // multiply initial confidence and sparse flow
@@ -422,10 +429,10 @@ int main(int argc, char** argv)
     }
 
     //filter confidenced sparse flow
-    Mat2f confidenced_flow_XY = PF.filterXY<Vec2f>(target_img, confidenced_flow);
+    Mat2f confidenced_flow_XY = PF.filterXY<Vec2f>(confidenced_flow);
 
     // compute normalized spatial filtered flow FXY by division
-    Mat2f normalized_confidenced_flow_filtered = Mat2f::zeros(target_img.rows,target_img.cols);
+    Mat2f normalized_confidenced_flow_filtered = Mat2f::zeros(confidenced_flow_XY.rows,confidenced_flow_XY.cols);
     for(int y = 0; y < confidenced_flow_XY.rows; y++) {
         for(int x = 0; x < confidenced_flow_XY.cols; x++) {
             for(int c = 0; c < confidenced_flow_XY.channels(); c++) {
@@ -495,16 +502,17 @@ int main(int argc, char** argv)
 
     for (size_t i = 1; i < nb_imgs; ++i)
     {
-        Mat3f It0 = input_RGB_images_vec[i - 1];
-        Mat3f It1 = input_RGB_images_vec[i];
+        PF.set_I_T(input_RGB_images_vec[i-1], input_RGB_images_vec[i]);
         Mat2f It0_XY = pf_spatial_flow_vec[i - 1];
         Mat2f It1_XY = pf_spatial_flow_vec[i];
 
         if(i == 1) {
-            It1_XYT_vector = PF.filterT<Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XY,  l_prev, l_normal_prev);
+            PF.computeTemporalPermeability(It1_XY, It0_XY);
+            It1_XYT_vector = PF.filterT<Vec2f>(It1_XY, It0_XY, It1_XY, It0_XY,  l_prev, l_normal_prev);
         }
         else {
-            It1_XYT_vector = PF.filterT<Vec2f>(It1, It0, It1_XY, It0_XY, It1_XY, It0_XYT, l_prev, l_normal_prev);
+            PF.computeTemporalPermeability(It1_XY, It0_XYT);
+            It1_XYT_vector = PF.filterT<Vec2f>(It1_XY, It0_XY, It1_XY, It0_XYT, l_prev, l_normal_prev);
         }
 
         It1_XYT = It1_XYT_vector[2];
