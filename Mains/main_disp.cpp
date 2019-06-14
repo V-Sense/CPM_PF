@@ -553,27 +553,35 @@ int main(int argc, char** argv)
         if(i == (nb_imgs-1)){
             Mat3f2color_image_t(input_RGB_images_vec[i], im1);
             Mat3f2color_image_t(input_RGB_images_vec[i - 1], im2);
-            pf_disp = pf_temporal_disp_vec[i];
+            pf_disp = -pf_temporal_disp_vec[i];
         }
         else {
             Mat3f2color_image_t(input_RGB_images_vec[i], im1);
             Mat3f2color_image_t(input_RGB_images_vec[i + 1], im2);
-            pf_disp = -pf_temporal_disp_vec[i];
+            pf_disp = pf_temporal_disp_vec[i];
         }
-        
+
         variational_params_t vr_params;
         cpm_pf_params.to_variational_params(&vr_params);
-        image_t *vr_disp_in = image_new(width, height);
-        Mat1f2image_t(pf_disp, vr_disp_in);
-        
-        variational_disp(vr_disp_in, im1, im2, &vr_params, ang_dir.c_str());
+
+        // image_t *vr_disp_in = image_new(width, height);
+        // Mat1f2image_t(pf_disp, vr_disp_in);
+        // variational_disp(vr_disp_in, im1, im2, &vr_params, ang_dir.c_str());
+
+        image_t *flow_x = image_new(width, height), *flow_y = image_new(width, height);
+        Mat1f2image_t(pf_disp, flow_x);
+        image_erase(flow_y);
+            
+        variational(flow_x, flow_y, im1, im2, &vr_params);
 
         Mat1f vr_disp_out(height, width);
-        image_t2Mat1f(vr_disp_in, vr_disp_out);
+        image_t2Mat1f(flow_x, vr_disp_out);
 
-        vr_disp_vec[i] = -vr_disp_out;
+        vr_disp_vec[i] = vr_disp_out;
 
-        image_delete(vr_disp_in);
+        // image_delete(vr_disp_in);
+        image_delete(flow_x);
+        image_delete(flow_y);
     }
     color_image_delete(im1);
     color_image_delete(im2);
