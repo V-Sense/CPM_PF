@@ -29,6 +29,16 @@ void variational_params_default(variational_params_t *params);
 /* Compute a refinement of the optical flow (wx and wy are modified) between im1 and im2 */
 void variational(image_t *wx, image_t *wy, const color_image_t *im1, const color_image_t *im2, variational_params_t *params);
 
+
+/*
+ * ADDED June 2019
+ * Author:   Martin Alain
+ * Contact:  alainm@scss.tcd.ie 
+ * Institution:  V-SENSE, School of Computer Science, Trinity College Dublin
+ */
+/* Compute a refinement of the disparity between im1 and im2 */
+void variational_disp(image_t *disp, const color_image_t *im1, const color_image_t *im2, variational_params_t *params, const char *parallax);
+
 #endif
 
 #ifdef __cplusplus

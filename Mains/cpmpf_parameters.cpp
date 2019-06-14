@@ -26,6 +26,7 @@ cpmpf_parameters::cpmpf_parameters() {
     output_PF_dir  = std::string("./");
     output_VR_dir  = std::string("./");
     write_intermediate_results = false;
+    write_color_png = false;
 }
 
 cpmpf_parameters::cpmpf_parameters(std::string dataset_name) {
@@ -41,6 +42,7 @@ cpmpf_parameters::cpmpf_parameters(std::string dataset_name) {
     output_PF_dir  = std::string("./");
     output_VR_dir  = std::string("./");
     write_intermediate_results = false;
+    write_color_png = false;
 }
 
 // Operators overloading

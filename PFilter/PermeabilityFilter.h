@@ -202,7 +202,7 @@ void PermeabilityFilter<TI>::set_disp_T(const Mat1f d0, const Mat1f d1, const st
         exit(EXIT_FAILURE);
     }
 
-    if(parallax != "ver" || parallax != "vertical" || parallax != "hor" || parallax != "horizontal") 
+    if(parallax != "ver" && parallax != "vertical" && parallax != "hor" && parallax != "horizontal") 
 	{
 		cerr << "Wrong parallax direction when setting disparity maps in permeabilty filter, should be ver or vertical or hor or horizontal" << endl;
 		exit(EXIT_FAILURE);

@@ -37,6 +37,7 @@ void Usage()
         << "  Output result folders:" << endl
         << "    -o, -output_VR                             set the final output folder (after variational refinement), default is <input_image_folder>" << endl
         << "    -save_intermediate                         use this flag to save results from CPM and PF steps, use the following flages to set the output folders" << endl
+        << "    -write_color_png                           write results as color png files using optical flow convention" << endl
         << "    -output_CPM                                set the output folder for the Coarse-to-fine Patchmatch step, default is <input_image_folder>" << endl
         << "    -output_PF                                 set the output folder for the Permeability Filter steps (both spatial and temporal, default is <input_image_folder>" << endl
         << "  CPM parameters:" << endl
@@ -159,6 +160,8 @@ void parse_cmd(int argc, char** argv, int current_arg, cpmpf_parameters &cpm_pf_
         // Intermediate results
         else if( isarg("-save_intermediate") )
             cpm_pf_params.write_intermediate_results = true;
+        else if( isarg("-write_color_png") )
+            cpm_pf_params.write_color_png = true;
         else if( isarg("-output_CPM") )
             cpm_pf_params.output_CPM_dir = string(argv[current_arg++]);
         else if( isarg("-output_PF") )
@@ -253,7 +256,7 @@ int main(int argc, char** argv)
 
         if(ang_dir == "ver") // Rotate image 90 degress and process them as horizontal parallax (allows to use stereo_flag=1 for CPM)
         {
-            cv::rotate(tmp_img3f, tmp_img3f, cv::ROTATE_90_COUNTERCLOCKWISE);
+            cv::rotate(tmp_img3f, tmp_img3f, cv::ROTATE_90_CLOCKWISE);
         }
 
         input_RGB_images_vec[i] = tmp_img3f;
@@ -282,6 +285,8 @@ int main(int argc, char** argv)
         FImage matches;
         cpm.Matching(img1, img2, matches);
 
+        // WriteMatches("test_matches_fwd.txt", matches);
+
         Mat1f disp_fwd(height, width, kMOVEMENT_UNKNOWN);
         Match2Disp(matches, disp_fwd, "hor");
         cpm_disp_fwd[i] = disp_fwd;
@@ -289,6 +294,8 @@ int main(int argc, char** argv)
         // Backward flow
         matches.clear();
         cpm.Matching(img2, img1, matches);
+
+        // WriteMatches("test_matches_bwd.txt", matches);
 
         Mat1f disp_bwd(height, width, kMOVEMENT_UNKNOWN);
         Match2Disp(matches, disp_bwd, "hor");
@@ -310,26 +317,53 @@ int main(int argc, char** argv)
             str_replace(img_name2, img_ext, "");
 
             // Forward matching
-            Mat1f cpm_disp = cpm_disp_fwd[i];
+            Mat1f cpm_disp;
+            cpm_disp_fwd[i].copyTo(cpm_disp);
             Mat1f mask_flow_unknown = cpm_disp != kMOVEMENT_UNKNOWN;
             cpm_disp = cpm_disp.mul(mask_flow_unknown); // Set unkown flow to 0 before writing to pfm file
 
             if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(-cpm_disp, cpm_disp, cv::ROTATE_90_CLOCKWISE);
+                cv::rotate(cpm_disp, cpm_disp, cv::ROTATE_90_COUNTERCLOCKWISE);
             
             string disp_file = cpm_pf_params.output_CPM_dir +  "/CPM__" + img_name1 + "__TO__" + img_name2 + ".pfm";
             WriteFilePFM(-cpm_disp, disp_file.c_str(), 1/255.0);
+
+            // Convert disparity to flow to write as color png
+            if(cpm_pf_params.write_color_png) {
+                vector<Mat1f> disp_2ch;
+                if(ang_dir == "ver")
+                    disp_2ch = {Mat1f::zeros(height, width), cpm_disp};
+                else if(ang_dir == "hor")
+                    disp_2ch = {cpm_disp, Mat1f::zeros(height, width)};
+                Mat2f disp_2_flow;
+                merge(disp_2ch, disp_2_flow);
+                disp_file = cpm_pf_params.output_CPM_dir +  "/CPM__" + img_name1 + "__TO__" + img_name2 + ".png";
+                WriteFlowAsImage(disp_2_flow, disp_file.c_str(), -1);
+            }
             
             // Backward matching
-            Mat1f cpm_disp = cpm_disp_bwd[i];
-            Mat1f mask_flow_unknown = cpm_disp != kMOVEMENT_UNKNOWN;
+            cpm_disp_bwd[i].copyTo(cpm_disp);
+            mask_flow_unknown = cpm_disp != kMOVEMENT_UNKNOWN;
             cpm_disp = cpm_disp.mul(mask_flow_unknown); // Set unkown flow to 0 before writing to pfm file
 
             if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(-cpm_disp, cpm_disp, cv::ROTATE_90_CLOCKWISE);
+                cv::rotate(cpm_disp, cpm_disp, cv::ROTATE_90_COUNTERCLOCKWISE);
 
             disp_file = cpm_pf_params.output_CPM_dir +  "/CPM__" + img_name2 + "__TO__" + img_name1 + ".pfm";
             WriteFilePFM(-cpm_disp, disp_file.c_str(), 1/255.0);
+
+            // Convert disparity to flow to write as color png
+            if(cpm_pf_params.write_color_png) {
+                vector<Mat1f> disp_2ch;
+                if(ang_dir == "ver")
+                    disp_2ch = {Mat1f::zeros(height, width), cpm_disp};
+                else if(ang_dir == "hor")
+                    disp_2ch = {cpm_disp, Mat1f::zeros(height, width)};
+                Mat2f disp_2_flow;
+                merge(disp_2ch, disp_2_flow);
+                disp_file = cpm_pf_params.output_CPM_dir +  "/CPM__" + img_name2 + "__TO__" + img_name1 + ".png";
+                WriteFlowAsImage(disp_2_flow, disp_file.c_str(), -1);
+            }
         }
         CPM_write_time.toc(" done in: ");
     }
@@ -342,7 +376,7 @@ int main(int argc, char** argv)
     // spatial filter
     CTimer sPF_time;
     std::cout << "Running spatial permeability filter... " << flush;
-    vector<Mat1f> pf_spatial_flow_vec(nb_imgs);
+    vector<Mat1f> pf_spatial_disp_vec(nb_imgs);
 
     for (size_t i = 0; i < nb_imgs; ++i) {
         PF.set_I_XY(input_RGB_images_vec[i]); // Set guide image
@@ -364,7 +398,6 @@ int main(int argc, char** argv)
             disp_confidence = getHorDispConfidence(disp_forward, disp_backward);
         }
         
-        
         // Apply spatial permeability filter on confidence
         PF.computeSpatialPermeabilityMaps();
         Mat1f disp_confidence_filtered = PF.filterXY(disp_confidence);
@@ -380,14 +413,13 @@ int main(int argc, char** argv)
             confidenced_disp = disp_forward.mul(disp_confidence);    
         }
             
-        
         // filter confidenced sparse flow
         Mat1f confidenced_disp_XY = PF.filterXY(confidenced_disp);
 
         // compute normalized spatial filtered flow FXY by division
         Mat1f normalized_confidenced_disp_filtered = confidenced_disp_XY.mul(1 / disp_confidence_filtered);
         
-        pf_spatial_flow_vec[i] = normalized_confidenced_disp_filtered;
+        pf_spatial_disp_vec[i] = normalized_confidenced_disp_filtered;
     }
 
     sPF_time.toc(" done in: ");
@@ -412,51 +444,54 @@ int main(int argc, char** argv)
             str_replace(img_name1, img_ext, "");
             str_replace(img_name2, img_ext, "");
 
-            Mat1f pf_disp = pf_spatial_flow_vec[i];
+            Mat1f pf_disp;
+            pf_spatial_disp_vec[i].copyTo(pf_disp);
             
             if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(-pf_disp, pf_disp, cv::ROTATE_90_CLOCKWISE);
+                cv::rotate(pf_disp, pf_disp, cv::ROTATE_90_COUNTERCLOCKWISE);
 
             string disp_file = cpm_pf_params.output_PF_dir +  "/PF_spatial__" + img_name1 + "__TO__" + img_name2 + ".pfm";
             WriteFilePFM(-pf_disp, disp_file.c_str(), 1/255.0);
+
+            // Convert disparity to flow to write as color png
+            if(cpm_pf_params.write_color_png) {
+                vector<Mat1f> disp_2ch;
+                if(ang_dir == "ver")
+                    disp_2ch = {Mat1f::zeros(height, width), pf_disp};
+                else if(ang_dir == "hor")
+                    disp_2ch = {pf_disp, Mat1f::zeros(height, width)};
+                Mat2f disp_2_flow;
+                merge(disp_2ch, disp_2_flow);
+                disp_file = cpm_pf_params.output_PF_dir +  "/PF_spatial__" + img_name1 + "__TO__" + img_name2 + ".png";
+                WriteFlowAsImage(disp_2_flow, disp_file.c_str(), -1);
+            }
         }
         sPF_write_time.toc(" done in: ");
     }
 
+
     // temporal filter
     CTimer tPF_time;
     std::cout << "Running temporal permeability filter... " << flush;
-    Mat2f l_prev = Mat2f::zeros(height, width);
-    Mat2f l_normal_prev = Mat2f::zeros(height, width);
-    Mat2f disp_t0_XYT, disp_t1_XYT;
-    vector<Mat2f> disp_t1_XYT_vector;
-    vector<Mat1f> pf_temporal_flow_vec(nb_imgs);
 
-    pf_temporal_flow_vec[0] = pf_spatial_flow_vec[0];
+    vector<Mat1f> pf_temporal_disp_vec(nb_imgs);
+    pf_temporal_disp_vec[0] = pf_spatial_disp_vec[0];
 
-    PF.init_T(height, width); // Initializes PF internal accumulated buffer before loop
+    // Init PF internal accumulated buffer before loop here, a bit ugly but best solution to handle multiple types for J
+    Mat1f l_disp_t0_num = Mat1f::zeros(height, width);
+    Mat1f l_disp_t0_den = Mat1f::zeros(height, width);
     for (size_t i = 1; i < nb_imgs; ++i)
     {
         PF.set_I_T(input_RGB_images_vec[i-1], input_RGB_images_vec[i]);
-        Mat2f disp_t0_XY = pf_spatial_flow_vec[i - 1];
-        Mat2f disp_t1_XY = pf_spatial_flow_vec[i];
+        
 
-        if(i == 1) {
-            PF.computeTemporalPermeability(disp_t0_XY, disp_t1_XY);
-            disp_t1_XYT_vector = PF.filterT<Vec2f>(disp_t1_XY, disp_t0_XY, disp_t0_XY,  l_prev, l_normal_prev);
-        }
-        else {
-            PF.computeTemporalPermeability(disp_t0_XYT, disp_t1_XY);
-            disp_t1_XYT_vector = PF.filterT<Vec2f>(disp_t0_XY, disp_t1_XY, disp_t0_XYT, l_prev, l_normal_prev);
-        }
+        Mat1f disp_t0_XY = pf_temporal_disp_vec[i - 1];
+        // Mat1f disp_t0_XY = pf_spatial_disp_vec[i - 1];
+        Mat1f disp_t1_XY = pf_spatial_disp_vec[i];
+        PF.set_disp_T(disp_t0_XY, disp_t1_XY, "hor");
 
-        disp_t1_XYT = disp_t1_XYT_vector[2];
-        l_prev = disp_t1_XYT_vector[0];
-        l_normal_prev = disp_t1_XYT_vector[1];
-
-        disp_t0_XYT = disp_t1_XYT;
-
-        pf_temporal_flow_vec[i] = disp_t1_XYT;
+        PF.computeTemporalPermeability();
+        pf_temporal_disp_vec[i] = PF.filterT(disp_t0_XY, disp_t1_XY, l_disp_t0_num, l_disp_t0_den);
     }
     tPF_time.toc(" done in: ");
 
@@ -480,23 +515,27 @@ int main(int argc, char** argv)
             str_replace(img_name1, img_ext, "");
             str_replace(img_name2, img_ext, "");
 
-            // // Forward matching only
-            // string flow_fwd_name = "PF_temporal__" + img_name1 + "__TO__" + img_name2;
-            // string flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".flo";
-            // WriteFlowFile(pf_temporal_flow_vec[i], flow_fwd_file.c_str());
-            
-            // flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".png";
-            // WriteFlowAsImage(pf_temporal_flow_vec[i], flow_fwd_file.c_str(), -1);
-
-            // Convert to disparity
-            vector<Mat1f> pf_temporal_flow_split;
-            cv::split(pf_temporal_flow_vec[i], pf_temporal_flow_split);
+            Mat1f pf_disp;
+            pf_temporal_disp_vec[i].copyTo(pf_disp);
 
             if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(-pf_temporal_flow_split[0], pf_temporal_flow_split[0], cv::ROTATE_90_CLOCKWISE);
+                cv::rotate(pf_disp, pf_disp, cv::ROTATE_90_COUNTERCLOCKWISE);
 
             string disp_file = cpm_pf_params.output_PF_dir +  "/PF_temporal__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-            WriteFilePFM(-pf_temporal_flow_split[0], disp_file.c_str(), 1/255.0);
+            WriteFilePFM(-pf_disp, disp_file.c_str(), 1/255.0);
+
+            // Convert disparity to flow to write as color png
+            if(cpm_pf_params.write_color_png) {
+                vector<Mat1f> disp_2ch;
+                if(ang_dir == "ver")
+                    disp_2ch = {Mat1f::zeros(height, width), pf_disp};
+                else if(ang_dir == "hor")
+                    disp_2ch = {pf_disp, Mat1f::zeros(height, width)};
+                Mat2f disp_2_flow;
+                merge(disp_2ch, disp_2_flow);
+                disp_file = cpm_pf_params.output_PF_dir +  "/PF_temporal__" + img_name1 + "__TO__" + img_name2 + ".png";
+                WriteFlowAsImage(disp_2_flow, disp_file.c_str(), -1);
+            }
         }
         tPF_write_time.toc(" done in: ");
     }
@@ -507,32 +546,34 @@ int main(int argc, char** argv)
     std::cout << "Running variational refinement... " << flush;
     color_image_t *im1 = color_image_new(width, height);
     color_image_t *im2 = color_image_new(width, height);
-    vector<Mat2f> vr_flow_vec(nb_imgs);
-    Mat2f pf_flow;
+    vector<Mat1f> vr_disp_vec(nb_imgs);
+    Mat1f pf_disp;
 
     for (size_t i = 0; i < nb_imgs ; ++i) {
         if(i == (nb_imgs-1)){
             Mat3f2color_image_t(input_RGB_images_vec[i], im1);
             Mat3f2color_image_t(input_RGB_images_vec[i - 1], im2);
-            pf_flow = -pf_temporal_flow_vec[i];
+            pf_disp = pf_temporal_disp_vec[i];
         }
         else {
             Mat3f2color_image_t(input_RGB_images_vec[i], im1);
             Mat3f2color_image_t(input_RGB_images_vec[i + 1], im2);
-            pf_flow = pf_temporal_flow_vec[i];
+            pf_disp = -pf_temporal_disp_vec[i];
         }
         
-        variational_params_t flow_params;
-        cpm_pf_params.to_variational_params(&flow_params);
-        image_t *flow_x = image_new(width, height), *flow_y = image_new(width, height);
-        Mat2f2image_t_uv(pf_flow, flow_x, flow_y);
+        variational_params_t vr_params;
+        cpm_pf_params.to_variational_params(&vr_params);
+        image_t *vr_disp_in = image_new(width, height);
+        Mat1f2image_t(pf_disp, vr_disp_in);
+        
+        variational_disp(vr_disp_in, im1, im2, &vr_params, ang_dir.c_str());
 
-        variational(flow_x, flow_y, im1, im2, &flow_params);
+        Mat1f vr_disp_out(height, width);
+        image_t2Mat1f(vr_disp_in, vr_disp_out);
 
-        Mat2f vr_flow(height, width);
-        image_t_uv2Mat2f(vr_flow, flow_x, flow_y);
+        vr_disp_vec[i] = -vr_disp_out;
 
-        vr_flow_vec[i] = vr_flow;
+        image_delete(vr_disp_in);
     }
     color_image_delete(im1);
     color_image_delete(im2);
@@ -549,7 +590,7 @@ int main(int argc, char** argv)
         if( i == (nb_imgs-1)) {
             img_name1 = input_images_name_vec[i];
             img_name2 = input_images_name_vec[i-1];
-            vr_flow_vec[i] = -vr_flow_vec[i]; // Forces all flows to have the same direction
+            vr_disp_vec[i] = -vr_disp_vec[i]; // Forces all flows to have the same direction
         }
         else {
             img_name1 = input_images_name_vec[i];
@@ -558,23 +599,27 @@ int main(int argc, char** argv)
         str_replace(img_name1, img_ext, "");
         str_replace(img_name2, img_ext, "");
 
-        // // Forward matching only
-        // string flow_fwd_name = "VR__" + img_name1 + "__TO__" + img_name2;
-        // string flow_fwd_file = cpm_pf_params.output_VR_dir + "/" + flow_fwd_name + ".flo";
-        // WriteFlowFile(vr_flow_vec[i], flow_fwd_file.c_str());
-        
-        // flow_fwd_file = cpm_pf_params.output_VR_dir + "/" + flow_fwd_name + ".png";
-        // WriteFlowAsImage(vr_flow_vec[i], flow_fwd_file.c_str(), -1);
-
-        // Convert to disparity
-        vector<Mat1f> vr_flow_split;
-        cv::split(vr_flow_vec[i], vr_flow_split);
+        Mat1f vr_disp;
+        vr_disp_vec[i].copyTo(vr_disp);
 
         if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(-vr_flow_split[0], vr_flow_split[0], cv::ROTATE_90_CLOCKWISE);
+                cv::rotate(vr_disp, vr_disp, cv::ROTATE_90_COUNTERCLOCKWISE);
 
         string disp_file = cpm_pf_params.output_VR_dir +  "/VR__" + img_name1 + "__TO__" + img_name2 + ".pfm";
-        WriteFilePFM(-vr_flow_split[0], disp_file.c_str(), 1/255.0);
+        WriteFilePFM(-vr_disp, disp_file.c_str(), 1/255.0);
+
+        // Convert disparity to flow to write as color png
+        if(cpm_pf_params.write_color_png) {
+            vector<Mat1f> disp_2ch;
+            if(ang_dir == "ver")
+                disp_2ch = {Mat1f::zeros(height, width), vr_disp};
+            else if(ang_dir == "hor")
+                disp_2ch = {vr_disp, Mat1f::zeros(height, width)};
+            Mat2f disp_2_flow;
+            merge(disp_2ch, disp_2_flow);
+            disp_file = cpm_pf_params.output_VR_dir +  "/VR__" + img_name1 + "__TO__" + img_name2 + ".png";
+            WriteFlowAsImage(disp_2_flow, disp_file.c_str(), -1);
+        }
     }
     vr_write_time.toc(" done in: ");
     

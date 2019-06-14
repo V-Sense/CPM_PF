@@ -14,6 +14,58 @@ typedef __v4sf v4sf;
 
 #define RECTIFY(a,b) (((a)<0) ? (0) : ( ((a)<(b)-1) ? (a) : ((b)-1) ) )
 
+/* warp a color image according to horizontal disparity. src is the input image, disp the input disparity. dst is the warped image and mask contains 0 or 1 if the pixels goes outside/inside image boundaries */
+void image_warp_disp_hor(color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *disp) {
+    int i, j, offset, x, x1, x2;
+    float xx, dx;
+    for(j=0 ; j<src->height ; j++){
+        offset = j*src->stride;
+        for(i=0 ; i<src->width ; i++,offset++){
+	        xx = i+disp->data[offset];
+          x = floor(xx);
+          dx = xx-x;
+	        mask->data[offset] = (xx>=0 && xx<=src->width-1);
+	        x1 = RECTIFY(x, src->width);
+	        x2 = RECTIFY(x+1, src->width);
+	        dst->c1[offset] = 
+	            src->c1[j*src->stride+x1]*(1.0f-dx) +
+	            src->c1[j*src->stride+x2]*dx;
+	        dst->c2[offset] = 
+	            src->c2[j*src->stride+x1]*(1.0f-dx) +
+	            src->c2[j*src->stride+x2]*dx;
+	        dst->c3[offset] = 
+	            src->c3[j*src->stride+x1]*(1.0f-dx) +
+	            src->c3[j*src->stride+x2]*dx;
+	    }
+    }
+}
+
+/* warp a color image according to vertical disparity. src is the input image, disp the input disparity. dst is the warped image and mask contains 0 or 1 if the pixels goes outside/inside image boundaries */
+void image_warp_disp_ver(color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *disp) {
+    int i, j, offset, y, y1, y2;
+    float yy, dy;
+    for(j=0 ; j<src->height ; j++){
+        offset = j*src->stride;
+        for(i=0 ; i<src->width ; i++,offset++){
+	        yy = j+disp->data[offset];
+	        y = floor(yy);
+	        dy = yy-y;
+	        mask->data[offset] = (yy>=0 && yy<=src->height-1);
+	        y1 = RECTIFY(y, src->height);
+	        y2 = RECTIFY(y+1, src->height);
+	        dst->c1[offset] = 
+	            src->c1[y1*src->stride+i]*(1.0f-dy) +
+	            src->c1[y2*src->stride+i]*dy;
+	        dst->c2[offset] = 
+	            src->c2[y1*src->stride+i]*(1.0f-dy) +
+	            src->c2[y2*src->stride+i]*dy;
+	        dst->c3[offset] = 
+	            src->c3[y1*src->stride+i]*(1.0f-dy) +
+	            src->c3[y2*src->stride+i]*dy;
+	    }
+    }
+}
+
 /* warp a color image according to a flow. src is the input image, wx and wy, the input flow. dst is the warped image and mask contains 0 or 1 if the pixels goes outside/inside image boundaries */
 void image_warp(color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *wx, const image_t *wy) {
     int i, j, offset, x, y, x1, x2, y1, y2;

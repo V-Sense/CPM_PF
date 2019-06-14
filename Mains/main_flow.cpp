@@ -36,6 +36,7 @@ void Usage()
         << "  Output result folders:" << endl
         << "    -o, -output_VR                             set the final output folder (after variational refinement), default is <input_image_folder>" << endl
         << "    -save_intermediate                         use this flag to save results from CPM and PF steps, use the following flages to set the output folders" << endl
+        << "    -write_color_png                           write results as color png files using optical flow convention" << endl
         << "    -output_CPM                                set the output folder for the Coarse-to-fine Patchmatch step, default is <input_image_folder>" << endl
         << "    -output_PF                                 set the output folder for the Permeability Filter steps (both spatial and temporal, default is <input_image_folder>" << endl
         << "  CPM parameters:" << endl
@@ -156,10 +157,13 @@ void parse_cmd(int argc, char** argv, int current_arg, cpmpf_parameters &cpm_pf_
         // Intermediate results
         else if( isarg("-save_intermediate") )
             cpm_pf_params.write_intermediate_results = true;
+        else if( isarg("-write_color_png") )
+            cpm_pf_params.write_color_png = true;
         else if( isarg("-output_CPM") )
             cpm_pf_params.output_CPM_dir = string(argv[current_arg++]);
         else if( isarg("-output_PF") )
             cpm_pf_params.output_PF_dir = string(argv[current_arg++]);
+        
 
         // Additional options for input image naming
         else if( isarg("-img_idx_width") ) // Number of zeros in the index
@@ -303,8 +307,10 @@ int main(int argc, char** argv)
             string flow_fwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_fwd_name + ".flo";
             WriteFlowFile(cpm_flow_fwd[i], flow_fwd_file.c_str());
             
-            flow_fwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_fwd_name + ".png";
-            WriteFlowAsImage(cpm_flow_fwd[i], flow_fwd_file.c_str(), -1);
+            if(cpm_pf_params.write_color_png) {
+                flow_fwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_fwd_name + ".png";
+                WriteFlowAsImage(cpm_flow_fwd[i], flow_fwd_file.c_str(), -1);
+            }
 
 
             // Backward matching
@@ -312,8 +318,10 @@ int main(int argc, char** argv)
             string flow_bwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_bwd_name + ".flo";
             WriteFlowFile(cpm_flow_bwd[i], flow_bwd_file.c_str());
             
-            flow_bwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_bwd_name + ".png";
-            WriteFlowAsImage(cpm_flow_bwd[i], flow_bwd_file.c_str(), -1);
+            if(cpm_pf_params.write_color_png) {
+                flow_bwd_file = cpm_pf_params.output_CPM_dir + "/" + flow_bwd_name + ".png";
+                WriteFlowAsImage(cpm_flow_bwd[i], flow_bwd_file.c_str(), -1);
+            }
         }
         CPM_write_time.toc(" done in: ");
     }
@@ -433,8 +441,10 @@ int main(int argc, char** argv)
             string flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".flo";
             WriteFlowFile(pf_spatial_flow_vec[i], flow_fwd_file.c_str());
             
-            flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".png";
-            WriteFlowAsImage(pf_spatial_flow_vec[i], flow_fwd_file.c_str(), -1);
+            if(cpm_pf_params.write_color_png) {
+                flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".png";
+                WriteFlowAsImage(pf_spatial_flow_vec[i], flow_fwd_file.c_str(), -1);
+            }
         }
         sPF_write_time.toc(" done in: ");
     }
@@ -489,8 +499,10 @@ int main(int argc, char** argv)
             string flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".flo";
             WriteFlowFile(pf_temporal_flow_vec[i], flow_fwd_file.c_str());
             
-            flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".png";
-            WriteFlowAsImage(pf_temporal_flow_vec[i], flow_fwd_file.c_str(), -1);
+            if(cpm_pf_params.write_color_png) {
+                flow_fwd_file = cpm_pf_params.output_PF_dir + "/" + flow_fwd_name + ".png";
+                WriteFlowAsImage(pf_temporal_flow_vec[i], flow_fwd_file.c_str(), -1);
+            }
         }
         tPF_write_time.toc(" done in: ");
     }
@@ -527,6 +539,9 @@ int main(int argc, char** argv)
         image_t_uv2Mat2f(vr_flow, flow_x, flow_y);
 
         vr_flow_vec[i] = vr_flow;
+
+        image_delete(flow_x);
+        image_delete(flow_y);
     }
     color_image_delete(im1);
     color_image_delete(im2);
@@ -557,8 +572,10 @@ int main(int argc, char** argv)
         string flow_fwd_file = cpm_pf_params.output_VR_dir + "/" + flow_fwd_name + ".flo";
         WriteFlowFile(vr_flow_vec[i], flow_fwd_file.c_str());
         
-        flow_fwd_file = cpm_pf_params.output_VR_dir + "/" + flow_fwd_name + ".png";
-        WriteFlowAsImage(vr_flow_vec[i], flow_fwd_file.c_str(), -1);
+        if(cpm_pf_params.write_color_png) {
+            flow_fwd_file = cpm_pf_params.output_VR_dir + "/" + flow_fwd_name + ".png";
+            WriteFlowAsImage(vr_flow_vec[i], flow_fwd_file.c_str(), -1);
+        }
     }
     vr_write_time.toc(" done in: ");
     

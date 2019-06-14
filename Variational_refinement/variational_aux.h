@@ -8,6 +8,12 @@ extern "C" {
 #include <stdlib.h>
 #include "image.h"
 
+/* warp a color image according to horizontal disparity. src is the input image, disp the input disparity. dst is the warped image and mask contains 0 or 1 if the pixels goes outside/inside image boundaries */
+void image_warp_disp_hor(color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *disp);
+
+/* warp a color image according to vertical disparity. src is the input image, disp the input disparity. dst is the warped image and mask contains 0 or 1 if the pixels goes outside/inside image boundaries */
+void image_warp_disp_ver(color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *disp);
+
 /* warp a color image according to a flow. src is the input image, wx and wy, the input flow. dst is the warped image and mask contains 0 or 1 if the pixels goes outside/inside image boundaries */
 void image_warp(color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *wx, const image_t *wy);
 

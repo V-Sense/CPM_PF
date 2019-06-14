@@ -30,6 +30,7 @@ public:
     std::string output_PF_dir;
     std::string output_VR_dir;
     bool write_intermediate_results;
+    bool write_color_png;
 
     // Addition naming options for input images
     int img_idx_width;

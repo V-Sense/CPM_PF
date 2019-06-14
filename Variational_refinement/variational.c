@@ -69,16 +69,16 @@ void compute_one_level(image_t *wx, image_t *wy, color_image_t *im1, color_image
         memcpy(wy->data,vv->data,vv->stride*vv->height*sizeof(float));
     }   
     // free memory
-    //image_delete(du); image_delete(dv);
-    //image_delete(mask);
-    //image_delete(smooth_horiz); image_delete(smooth_vert);
-    //image_delete(uu); image_delete(vv);
-    //image_delete(a11); image_delete(a12); image_delete(a22);
-    //image_delete(b1); image_delete(b2);
-    //image_delete(dpsis_weight);
-    //color_image_delete(w_im2); 
-    //color_image_delete(Ix); color_image_delete(Iy); color_image_delete(Iz);
-    //color_image_delete(Ixx); color_image_delete(Ixy); color_image_delete(Iyy); color_image_delete(Ixz); color_image_delete(Iyz);
+    image_delete(du); image_delete(dv);
+    image_delete(mask);
+    image_delete(smooth_horiz); image_delete(smooth_vert);
+    image_delete(uu); image_delete(vv);
+    image_delete(a11); image_delete(a12); image_delete(a22);
+    image_delete(b1); image_delete(b2);
+    image_delete(dpsis_weight);
+    color_image_delete(w_im2); 
+    color_image_delete(Ix); color_image_delete(Iy); color_image_delete(Iz);
+    color_image_delete(Ixx); color_image_delete(Ixy); color_image_delete(Iyy); color_image_delete(Ixz); color_image_delete(Iyz);
 }
 
 /* set flow parameters to default */
@@ -140,3 +140,127 @@ void variational(image_t *wx, image_t *wy, const color_image_t *im1, const color
     convolution_delete(deriv_flow);
 }
 
+
+
+/*
+ * ADDED June 2019
+ * Author:   Martin Alain
+ * Contact:  alainm@scss.tcd.ie 
+ * Institution:  V-SENSE, School of Computer Science, Trinity College Dublin
+ */
+
+/* perform disp computation at one level of the pyramid */
+void compute_one_level_disp(image_t *disp, color_image_t *im1, color_image_t *im2, const variational_params_t *params, const char *parallax){ 
+    const int width = disp->width, height = disp->height, stride=disp->stride;
+
+    image_t *du = image_new(width,height), *dv = image_new(width,height), // the flow increment
+        *mask = image_new(width,height), // mask containing 0 if a point goes outside image boundary, 1 otherwise
+        *smooth_horiz = image_new(width,height), *smooth_vert = image_new(width,height), // horiz: (i,j) contains the diffusivity coeff from (i,j) to (i+1,j) 
+        *uu = image_new(width,height), *vv = image_new(width,height), // flow plus flow increment
+        *a11 = image_new(width,height), *a12 = image_new(width,height), *a22 = image_new(width,height), // system matrix A of Ax=b for each pixel
+        *b1 = image_new(width,height), *b2 = image_new(width,height); // system matrix b of Ax=b for each pixel
+
+    color_image_t *w_im2 = color_image_new(width,height), // warped second image
+        *Ix = color_image_new(width,height), *Iy = color_image_new(width,height), *Iz = color_image_new(width,height), // first order derivatives
+        *Ixx = color_image_new(width,height), *Ixy = color_image_new(width,height), *Iyy = color_image_new(width,height), *Ixz = color_image_new(width,height), *Iyz = color_image_new(width,height); // second order derivatives
+  
+  
+    image_t *dpsis_weight = compute_dpsis_weight(im1, 5.0f, deriv);  
+  
+    int i_outer_iteration;
+    for(i_outer_iteration = 0 ; i_outer_iteration < params->niter_outer ; i_outer_iteration++){
+        int i_inner_iteration;
+        // warp second image
+        if( (strcmp(parallax, "ver") == 0) || (strcmp(parallax, "vertical") == 0))
+            image_warp_disp_ver(w_im2, mask, im2, disp);
+        else if( (strcmp(parallax, "hor") == 0) || (strcmp(parallax, "horizontal") == 0))
+            image_warp_disp_hor(w_im2, mask, im2, disp);
+        // compute derivatives
+        get_derivatives(im1, w_im2, deriv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz);
+        // erase du and dv
+        image_erase(du);
+        image_erase(dv);
+        // initialize uu and vv, copy disp to uu and set vv to zeros
+        memcpy(uu->data,disp->data,disp->stride*disp->height*sizeof(float));
+        image_erase(vv);
+        // inner fixed point iterations
+        for(i_inner_iteration = 0 ; i_inner_iteration < params->niter_inner ; i_inner_iteration++){
+            //  compute robust function and system
+            compute_smoothness(smooth_horiz, smooth_vert, uu, vv, dpsis_weight, deriv_flow, half_alpha );
+            compute_data_and_match(a11, a12, a22, b1, b2, mask, du, dv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, half_delta_over3, half_gamma_over3);
+            sub_laplacian(b1, disp, smooth_horiz, smooth_vert);
+            image_erase(b2);
+            // solve system
+            sor_coupled(du, dv, a11, a12, a22, b1, b2, smooth_horiz, smooth_vert, params->niter_solver, params->sor_omega);          
+            // update flow plus flow increment
+            int i;
+            v4sf *uup = (v4sf*) uu->data, *wxp = (v4sf*) disp->data, *dup = (v4sf*) du->data;
+            for( i=0 ; i<height*stride/4 ; i++){
+                (*uup) = (*wxp) + (*dup);
+                uup+=1; wxp+=1; dup+=1;
+	        }
+        }
+        // add flow increment to current flow
+        memcpy(disp->data,uu->data,uu->stride*uu->height*sizeof(float));
+    }   
+    // free memory
+    image_delete(du); image_delete(dv);
+    image_delete(mask);
+    image_delete(smooth_horiz); image_delete(smooth_vert);
+    image_delete(uu); image_delete(vv);
+    image_delete(a11); image_delete(a12); image_delete(a22);
+    image_delete(b1); image_delete(b2);
+    image_delete(dpsis_weight);
+    color_image_delete(w_im2); 
+    color_image_delete(Ix); color_image_delete(Iy); color_image_delete(Iz);
+    color_image_delete(Ixx); color_image_delete(Ixy); color_image_delete(Iyy); color_image_delete(Ixz); color_image_delete(Iyz);
+}
+
+/* Compute a refinement of the disparity between im1 and im2 */
+void variational_disp(image_t *disp, const color_image_t *im1, const color_image_t *im2, variational_params_t *params, const char *parallax){
+  
+    // Check parameters
+    if(!params){
+        params = (variational_params_t*) malloc(sizeof(variational_params_t));
+        if(!params){
+          fprintf(stderr,"error: not enough memory\n");
+          exit(1);
+        }
+        variational_params_default(params);
+    }
+    if(strcmp(parallax, "ver") && strcmp(parallax, "vertical") && strcmp(parallax, "hor") && strcmp(parallax, "horizontal"))
+    {
+        fprintf(stderr,"error: wrong parallax in variational disparity, should be hor, or horizontal, or ver, or vertical.\n");
+        exit(1);
+    }
+
+
+    // initialize global variables
+    half_alpha = 0.5f*params->alpha;
+    half_gamma_over3 = params->gamma*0.5f/3.0f;
+    half_delta_over3 = params->delta*0.5f/3.0f;
+    
+    float deriv_filter[3] = {0.0f, -8.0f/12.0f, 1.0f/12.0f};
+    deriv = convolution_new(2, deriv_filter, 0);
+    float deriv_filter_flow[2] = {0.0f, -0.5f};
+    deriv_flow = convolution_new(1, deriv_filter_flow, 0);
+
+
+    // presmooth images
+    int width = im1->width, height = im1->height, filter_size;
+    color_image_t *smooth_im1 = color_image_new(width, height), *smooth_im2 = color_image_new(width, height);
+    float *presmooth_filter = gaussian_filter(params->sigma, &filter_size);
+    convolution_t *presmoothing = convolution_new(filter_size, presmooth_filter, 1);
+    color_image_convolve_hv(smooth_im1, im1, presmoothing, presmoothing);
+    color_image_convolve_hv(smooth_im2, im2, presmoothing, presmoothing); 
+    convolution_delete(presmoothing);
+    free(presmooth_filter);
+    
+    compute_one_level_disp(disp, smooth_im1, smooth_im2, params, parallax);
+  
+    // free memory
+    color_image_delete(smooth_im1);
+    color_image_delete(smooth_im2);
+    convolution_delete(deriv);
+    convolution_delete(deriv_flow);
+}

@@ -15,6 +15,7 @@
 #define MAXWHEELCOLS 60
 
 const cv::Vec2i kPOSITION_INVALID = cv::Vec2i(-1, -1);
+const int kCOORD_INVALID = -1;
 const float kMOVEMENT_UNKNOWN = 1e10;
 const cv::Vec2f kFLOW_UNKNOWN = cv::Vec2f(kMOVEMENT_UNKNOWN,kMOVEMENT_UNKNOWN);
 
@@ -64,7 +65,7 @@ inline int getAbsoluteDisp(int x, float disp, int w)
     if(result >= 0 && result < w)
         return result;
     else
-        return (int)kMOVEMENT_UNKNOWN;
+        return kCOORD_INVALID;
 }
 
 cv::Mat1f getFlowConfidence(cv::Mat2f forward_flow, cv::Mat2f backward_flow);
