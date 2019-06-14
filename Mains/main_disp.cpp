@@ -381,12 +381,12 @@ int main(int argc, char** argv)
     for (size_t i = 0; i < nb_imgs; ++i) {
         PF.set_I_XY(input_RGB_images_vec[i]); // Set guide image
         Mat1f disp_forward, disp_backward, disp_confidence;
-        if(i == (nb_imgs-1)) // For the last image, associate the backward flow with a minus sign
+        if(i == (nb_imgs-1)) // For the last image, associate the backward disp with a minus sign
         {
             disp_forward  = cpm_disp_fwd[i-1];
             disp_backward = cpm_disp_bwd[i-1];
 
-            // compute flow confidence map
+            // compute disp confidence map
             disp_confidence = getHorDispConfidence(disp_backward, disp_forward);
         }
         else
@@ -394,7 +394,7 @@ int main(int argc, char** argv)
             disp_forward  = cpm_disp_fwd[i];
             disp_backward = cpm_disp_bwd[i];
 
-            // compute flow confidence map
+            // compute disp confidence map
             disp_confidence = getHorDispConfidence(disp_forward, disp_backward);
         }
         

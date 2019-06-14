@@ -336,25 +336,50 @@ int main(int argc, char** argv)
     std::cout << "Running spatial permeability filter... " << flush;
     vector<Mat2f> pf_spatial_flow_vec(nb_imgs);
 
-    for (size_t i = 0; i < nb_imgs - 1; ++i) {
+    for (size_t i = 0; i < nb_imgs; ++i) {
         PF.set_I_XY(input_RGB_images_vec[i]); // Set guide image
-        Mat2f flow_forward  = cpm_flow_fwd[i];
-        Mat2f flow_backward = cpm_flow_bwd[i];
+        Mat2f flow_forward, flow_backward;
+        Mat1f flow_confidence;
+        if(i == (nb_imgs-1)) // For the last image, associate the backward flow with a minus sign
+        {
+            flow_forward  = cpm_flow_fwd[i-1];
+            flow_backward = cpm_flow_bwd[i-1];
 
-        // compute flow confidence map
-        Mat1f flow_confidence = getFlowConfidence(flow_forward, flow_backward);
+            // compute flow confidence map
+            flow_confidence = getFlowConfidence(flow_backward, flow_forward);
+        }
+        else
+        {
+            flow_forward  = cpm_flow_fwd[i];
+            flow_backward = cpm_flow_bwd[i];
+
+            // compute flow confidence map
+            flow_confidence = getFlowConfidence(flow_forward, flow_backward);
+        }
 
         // Apply spatial permeability filter on confidence
         PF.computeSpatialPermeabilityMaps();
         Mat1f flow_confidence_filtered = PF.filterXY(flow_confidence);
 
-
         // multiply initial confidence and sparse flow
         Mat2f confidenced_flow = Mat2f::zeros(flow_confidence.rows,flow_confidence.cols);
-        for(int y = 0; y < confidenced_flow.rows; y++) {
-            for(int x = 0; x < confidenced_flow.cols; x++) {
-                for(int c = 0; c < confidenced_flow.channels(); c++) {
-                    confidenced_flow(y,x)[c] = flow_forward(y,x)[c] * flow_confidence(y,x);
+        if(i == (nb_imgs-1)) // For the last image, associate the backward flow with a minus sign
+        {
+            for(int y = 0; y < confidenced_flow.rows; y++) {
+                for(int x = 0; x < confidenced_flow.cols; x++) {
+                    for(int c = 0; c < confidenced_flow.channels(); c++) {
+                        confidenced_flow(y,x)[c] = -flow_backward(y,x)[c] * flow_confidence(y,x);
+                    }
+                }
+            }
+        }
+        else
+        {
+            for(int y = 0; y < confidenced_flow.rows; y++) {
+                for(int x = 0; x < confidenced_flow.cols; x++) {
+                    for(int c = 0; c < confidenced_flow.channels(); c++) {
+                        confidenced_flow(y,x)[c] = flow_forward(y,x)[c] * flow_confidence(y,x);
+                    }
                 }
             }
         }
@@ -374,45 +399,6 @@ int main(int argc, char** argv)
 
         pf_spatial_flow_vec[i] = normalized_confidenced_flow_filtered;
     }
-
-    // For the last image, associate the backward flow with a minus sign
-    PF.set_I_XY(input_RGB_images_vec[nb_imgs - 1]); // Set guide image
-    Mat2f flow_forward  = cpm_flow_fwd[nb_imgs - 2];
-    Mat2f flow_backward = cpm_flow_bwd[nb_imgs - 2];
-
-    // compute flow confidence map
-    Mat1f flow_confidence = getFlowConfidence(flow_backward, flow_forward);
-
-    // Apply spatial permeability filter on confidence
-    PF.computeSpatialPermeabilityMaps();
-    Mat1f flow_confidence_filtered = PF.filterXY(flow_confidence);
-
-
-    // multiply initial confidence and sparse flow
-    Mat2f confidenced_flow = Mat2f::zeros(flow_confidence.rows,flow_confidence.cols);
-    for(int y = 0; y < confidenced_flow.rows; y++) {
-        for(int x = 0; x < confidenced_flow.cols; x++) {
-            for(int c = 0; c < confidenced_flow.channels(); c++) {
-                confidenced_flow(y,x)[c] = -flow_backward(y,x)[c] * flow_confidence(y,x);
-            }
-        }
-    }
-
-    //filter confidenced sparse flow
-    Mat2f confidenced_flow_XY = PF.filterXY<Vec2f>(confidenced_flow);
-
-    // compute normalized spatial filtered flow FXY by division
-    Mat2f normalized_confidenced_flow_filtered = Mat2f::zeros(confidenced_flow_XY.rows,confidenced_flow_XY.cols);
-    for(int y = 0; y < confidenced_flow_XY.rows; y++) {
-        for(int x = 0; x < confidenced_flow_XY.cols; x++) {
-            for(int c = 0; c < confidenced_flow_XY.channels(); c++) {
-                normalized_confidenced_flow_filtered(y,x)[c] = confidenced_flow_XY(y,x)[c] / flow_confidence_filtered(y,x);
-            }
-        }
-    }
-
-    pf_spatial_flow_vec[nb_imgs - 1] = normalized_confidenced_flow_filtered;
-    
 
     sPF_time.toc(" done in: ");
 
