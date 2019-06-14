@@ -263,6 +263,13 @@ int main(int argc, char** argv)
     }
     CPM_input_time.toc(" done in: ");
 
+    if(ang_dir == "ver") // Update image size, width and height are swaped
+    {
+        width  = input_RGB_images_vec[0].cols;
+        height = input_RGB_images_vec[0].rows;
+        nch = input_RGB_images_vec[0].channels();
+    }
+    
 
     /* ---------------- RUN COARSE-TO-FINE PATCHMATCH --------------------------- */
     CTimer CPM_time;
@@ -285,8 +292,6 @@ int main(int argc, char** argv)
         FImage matches;
         cpm.Matching(img1, img2, matches);
 
-        // WriteMatches("test_matches_fwd.txt", matches);
-
         Mat1f disp_fwd(height, width, kMOVEMENT_UNKNOWN);
         Match2Disp(matches, disp_fwd, "hor");
         cpm_disp_fwd[i] = disp_fwd;
@@ -294,8 +299,6 @@ int main(int argc, char** argv)
         // Backward flow
         matches.clear();
         cpm.Matching(img2, img1, matches);
-
-        // WriteMatches("test_matches_bwd.txt", matches);
 
         Mat1f disp_bwd(height, width, kMOVEMENT_UNKNOWN);
         Match2Disp(matches, disp_bwd, "hor");

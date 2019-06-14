@@ -576,20 +576,10 @@ void PermeabilityFilter<TI>::computeTemporalPermeability()
     perm_t.convertTo(perm_t, CV_32FC1);
     is_perm_t_set = true;
 
-    // FOR DEBUG PURPOSE
-    // Mat2f prev_map = Mat2f::zeros(h,w);
-    // for (int y = 0; y < h; y++) {
-    //     for (int x = 0; x < w; x++){
-    //         prev_map(y,x)[0] = x - flow_t0(y,x)[0];
-    //         prev_map(y,x)[1] = y - flow_t0(y,x)[1];
-    //     }
-    // }
-    // std::vector<Mat1f> prev_maps(num_channels_flow);
-    // split(prev_map, prev_maps);
-    // remap(I_prev, I_t0_warp_2_t1, prev_maps[0], prev_maps[1], cv::INTER_CUBIC);
-
+    
+    // // FOR DEBUG PURPOSE
     // Mat I_org, I_warp;
-    // I.convertTo(I_org, CV_8UC3, 255);
+    // I_t1.convertTo(I_org, CV_8UC3, 255);
     // I_t0_warp_2_t1.convertTo(I_warp, CV_8UC3, 255);
     
     // int rnum = rand();
