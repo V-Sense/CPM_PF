@@ -253,7 +253,6 @@ int main(int argc, char** argv)
 
         // Convert to floating point values in [0.0 1.0] range        
         Mat3f tmp_img3f;
-        cout << tmp_img3f.type() << endl;
         if ( tmp_img.type() == CV_32FC3 )
         {
             tmp_img3f = tmp_img;
