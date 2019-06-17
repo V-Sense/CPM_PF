@@ -228,7 +228,7 @@ int main(int argc, char** argv)
         input_images_name_vec[i] = img_name;
         
         std::cout << input_images_folder + "/" + img_name << endl;
-        Mat tmp_img = imread(input_images_folder + "/" + img_name);
+        Mat tmp_img = imread(input_images_folder + "/" + img_name, cv::IMREAD_UNCHANGED);
         if ( tmp_img.empty() ) {
             std::cout << input_images_name_vec[i] << " is invalid!" << endl;
             continue;
@@ -246,9 +246,24 @@ int main(int argc, char** argv)
                 return -1;
             }
         }
-        
+
+        // Convert to floating point values in [0.0 1.0] range        
         Mat3f tmp_img3f;
-        tmp_img.convertTo(tmp_img3f, CV_32F, 1/255.);
+        cout << tmp_img3f.type() << endl;
+        if ( tmp_img.type() == CV_32FC3 )
+        {
+            tmp_img3f = tmp_img;
+        }
+        else
+        {
+            double scale = 1.0;
+            if ( tmp_img.type() % 8 == CV_8U )
+                scale = 1./255.;
+            else if ( tmp_img.type() % 8 == CV_16U )
+                scale = 1./65535.;
+            tmp_img.convertTo(tmp_img3f, CV_32FC3, scale);
+        }
+
         input_RGB_images_vec[i] = tmp_img3f;
     }
     CPM_input_time.toc(" done in: ");
