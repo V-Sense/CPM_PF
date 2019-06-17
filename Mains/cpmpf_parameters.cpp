@@ -52,6 +52,7 @@ std::ostream& operator<< (std::ostream& os, cpmpf_parameters &cpmpf_param)
 	os << std::endl << "[CPMPF parameters]" << std::endl;
 	os << "CPM_max_displacement: "    << cpmpf_param.CPM_max_displacement << std::endl;
 	os << "CPM_check_threshold: "     << cpmpf_param.CPM_check_threshold << std::endl;
+    os << "CPM_cost_threshold: "      << cpmpf_param.CPM_cost_threshold << std::endl;
 	os << "CPM_stereo_flag: "         << cpmpf_param.CPM_stereo_flag << std::endl;
 	os << "CPM_step: "                << cpmpf_param.CPM_step << std::endl;
 	
@@ -127,6 +128,7 @@ void cpmpf_parameters::to_CPM_params(CPM &cpm){
 	cpm.SetStep(CPM_step);
 	cpm.SetMaxDisplacement(CPM_max_displacement);
 	cpm.SetCheckThreshold(CPM_check_threshold);
+    cpm.SetCostCheckThreshold(CPM_cost_threshold);
 }
 
 void cpmpf_parameters::to_variational_params(variational_params_t *v_params){

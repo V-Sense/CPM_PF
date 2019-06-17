@@ -39,6 +39,7 @@ public:
 	void SetStep(int step);
 	void SetMaxDisplacement(int maxDisplacement);
 	void SetCheckThreshold(float checkThreshold);
+	void SetCostCheckThreshold(float costCheckThreshold);
 
 private:
 	void imDaisy(FImage& img, UCImage& outFtImg);

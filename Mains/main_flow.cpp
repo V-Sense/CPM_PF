@@ -231,7 +231,7 @@ int main(int argc, char** argv)
         Mat tmp_img = imread(input_images_folder + "/" + img_name, cv::IMREAD_UNCHANGED);
         if ( tmp_img.empty() ) {
             std::cout << input_images_name_vec[i] << " is invalid!" << endl;
-            continue;
+            exit(EXIT_FAILURE);
         }
 
         if( i == 0 ) {

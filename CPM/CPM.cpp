@@ -68,6 +68,11 @@ void CPM::SetCheckThreshold(float checkThreshold)
 	_checkThreshold = checkThreshold;
 }
 
+void CPM::SetCostCheckThreshold(float costCheckThreshold)
+{
+	_costCheckThreshold = _costCheckThreshold;
+}
+
 int CPM::Matching(FImage& img1, FImage& img2, FImage& outMatches)
 {
 	CTimer t;
