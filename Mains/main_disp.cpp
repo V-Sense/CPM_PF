@@ -28,11 +28,17 @@ void Usage()
     std::cout<< endl
         << "Usage:" << endl
         << "  ./CPMPF <input_image_folder> <img_pre> <img_ext> <start_idx> <nb_imgs> <ang_dir> [options]" << endl
+        << "Mandatory parameters:" << endl
+        << "    <input_image_folder>                       path to input images" << endl
+        << "    <img_pre>                                  image name prefix. If there is no image prefix use none or ''" << endl
+        << "    <img_ext>                                  extension of the image file format, can be anything supported by OpenCV" <<endl
+        << "    <start_idx>                                index of the first image to process. Note that the image index is expected to be located in between the image prefix and the image optional suffix of extension" << endl
+        << "    <nb_imgs>                                  number of images to process" << endl
         << "Options:" << endl
         << "    -h, -help                                  print this message" << endl
         << "  Additional image naming options:" << endl
         << "    -img_idx_width                             length of the image index number" << endl
-        << "    -img_skip                                  index number skip" << endl
+        << "    -img_skip                                  index number skip to use if the images indices are not consecutive (i.e. different from 1)" << endl
         << "    -img_suf                                   suffix to add before image format extension" << endl
         << "  Output result folders:" << endl
         << "    -o, -output_VR                             set the final output folder (after variational refinement), default is <input_image_folder>" << endl
