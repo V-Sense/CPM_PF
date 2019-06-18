@@ -1,0 +1,11 @@
+@inproceedings{Butler:ECCV:2012,
+title = {A naturalistic open source movie for optical flow evaluation},
+author = {Butler, D. J. and Wulff, J. and Stanley, G. B. and Black, M. J.},
+booktitle = {European Conf. on Computer Vision (ECCV)},
+editor = {{A. Fitzgibbon et al. (Eds.)}},
+publisher = {Springer-Verlag},
+series = {Part IV, LNCS 7577},
+month = oct,
+pages = {611--625},
+year = {2012}
+}

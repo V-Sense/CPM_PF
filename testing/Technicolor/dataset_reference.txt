@@ -1,0 +1,11 @@
+@InProceedings{Sabater2017,
+
+Title = {Dataset and Pipeline for Multi-View Light-Field Video},
+
+Author = {Sabater, Neus and Boisson, Guillaume and Vandame, Benoit and Kerbiriou, Paul and Babon, Frederic and Hog, Matthieu and Langlois, Tristan and Gendrot, Remy and Bureller, Olivier and Schubert, Arno, and Allie, Valerie},
+
+Booktitle = {CVPR Workshops},
+
+Year = {2017},
+
+}

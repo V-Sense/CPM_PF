@@ -1,0 +1,18 @@
+@InProceedings{10.1007/978-3-319-54187-7_2,
+author="Honauer, Katrin
+and Johannsen, Ole
+and Kondermann, Daniel
+and Goldluecke, Bastian",
+editor="Lai, Shang-Hong
+and Lepetit, Vincent
+and Nishino, Ko
+and Sato, Yoichi",
+title="A Dataset and Evaluation Methodology for Depth Estimation on 4D Light Fields",
+booktitle="Computer Vision --  ACCV 2016",
+year="2017",
+publisher="Springer International Publishing",
+address="Cham",
+pages="19--34",
+abstract="In computer vision communities such as stereo, optical flow, or visual tracking, commonly accepted and widely used benchmarks have enabled objective comparison and boosted scientific progress.",
+isbn="978-3-319-54187-7"
+}

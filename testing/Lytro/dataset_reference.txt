@@ -1,0 +1,11 @@
+@INPROCEEDINGS{8451544, 
+author={P. {Matysiak} and M. {Grogan} and M. L. {Pendu} and M. {Alain} and A. {Smolic}}, 
+booktitle={2018 25th IEEE International Conference on Image Processing (ICIP)}, 
+title={A Pipeline for Lenslet Light Field Quality Enhancement}, 
+year={2018}, 
+volume={}, 
+number={}, 
+pages={639-643}, 
+doi={10.1109/ICIP.2018.8451544}, 
+ISSN={2381-8549}, 
+month={Oct},}
