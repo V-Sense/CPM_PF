@@ -34,8 +34,8 @@ void Match2Flow(FImage& inMat, FImage& ou, FImage& ov, int w, int h)
 
 		for (int di = -1; di <= 1; di++){
             for (int dj = -1; dj <= 1; dj++){
-				int tx = ImageProcessing::EnforceRange(x + dj, w);
-				int ty = ImageProcessing::EnforceRange(y + di, h);
+				int tx = img_boundary_check(x + (float)dj, w);
+				int ty = img_boundary_check(y + (float)di, h);
 				ou[ty*w + tx] = u;
 				ov[ty*w + tx] = v;
 			}
@@ -82,8 +82,8 @@ void Match2Flow(FImage matches, Mat2f &flow)
 
 		for (int di = -1; di <= 1; di++){
             for (int dj = -1; dj <= 1; dj++){
-				int tx = ImageProcessing::EnforceRange(x + dj, w);
-				int ty = ImageProcessing::EnforceRange(y + di, h);
+				int tx = img_boundary_check(x + (float)dj, w);
+				int ty = img_boundary_check(y + (float)di, h);
 				flow(ty, tx)[0] = u;
 				flow(ty, tx)[1] = v;
 			}
@@ -116,8 +116,8 @@ void Match2Disp(FImage matches, Mat1f &disp, string parallax)
 
 		for (int di = -1; di <= 1; di++){
             for (int dj = -1; dj <= 1; dj++){
-				int tx = ImageProcessing::EnforceRange(x + dj, w);
-				int ty = ImageProcessing::EnforceRange(y + di, h);
+				int tx = img_boundary_check(x + (float)dj, w);
+				int ty = img_boundary_check(y + (float)di, h);
 				disp(ty, tx) = d;
 			}
 		}

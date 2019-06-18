@@ -36,8 +36,8 @@ void Usage()
         << "    -img_suf                                   suffix to add before image format extension" << endl
         << "  Output result folders:" << endl
         << "    -o, -output_VR                             set the final output folder (after variational refinement), default is <input_image_folder>" << endl
-        << "    -save_intermediate                         use this flag to save results from CPM and PF steps, use the following flages to set the output folders" << endl
         << "    -write_color_png                           write results as color png files using optical flow convention" << endl
+        << "    -save_intermediate                         use this flag to save results from CPM and PF steps, use the following flags to set the output folders" << endl
         << "    -output_CPM                                set the output folder for the Coarse-to-fine Patchmatch step, default is <input_image_folder>" << endl
         << "    -output_PF                                 set the output folder for the Permeability Filter steps (both spatial and temporal, default is <input_image_folder>" << endl
         << "  CPM parameters:" << endl
@@ -270,7 +270,7 @@ int main(int argc, char** argv)
 
         if(ang_dir == "ver") // Rotate image 90 degress and process them as horizontal parallax (allows to use stereo_flag=1 for CPM)
         {
-            cv::rotate(tmp_img3f, tmp_img3f, cv::ROTATE_90_CLOCKWISE);
+            cv::rotate(tmp_img3f, tmp_img3f, cv::ROTATE_90_COUNTERCLOCKWISE);
         }
 
         input_RGB_images_vec[i] = tmp_img3f;
@@ -340,7 +340,7 @@ int main(int argc, char** argv)
             cpm_disp = cpm_disp.mul(mask_flow_unknown); // Set unkown flow to 0 before writing to pfm file
 
             if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(cpm_disp, cpm_disp, cv::ROTATE_90_COUNTERCLOCKWISE);
+                cv::rotate(cpm_disp, cpm_disp, cv::ROTATE_90_CLOCKWISE);
             
             string disp_file = cpm_pf_params.output_CPM_dir +  "/CPM__" + img_name1 + "__TO__" + img_name2 + ".pfm";
             WriteFilePFM(-cpm_disp, disp_file.c_str(), 1/255.0);
@@ -349,7 +349,7 @@ int main(int argc, char** argv)
             if(cpm_pf_params.write_color_png) {
                 vector<Mat1f> disp_2ch;
                 if(ang_dir == "ver")
-                    disp_2ch = {Mat1f::zeros(height, width), cpm_disp};
+                    disp_2ch = {Mat1f::zeros(width, height), cpm_disp}; // Height and width are swaped
                 else if(ang_dir == "hor")
                     disp_2ch = {cpm_disp, Mat1f::zeros(height, width)};
                 Mat2f disp_2_flow;
@@ -364,7 +364,7 @@ int main(int argc, char** argv)
             cpm_disp = cpm_disp.mul(mask_flow_unknown); // Set unkown flow to 0 before writing to pfm file
 
             if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(cpm_disp, cpm_disp, cv::ROTATE_90_COUNTERCLOCKWISE);
+                cv::rotate(cpm_disp, cpm_disp, cv::ROTATE_90_CLOCKWISE);
 
             disp_file = cpm_pf_params.output_CPM_dir +  "/CPM__" + img_name2 + "__TO__" + img_name1 + ".pfm";
             WriteFilePFM(-cpm_disp, disp_file.c_str(), 1/255.0);
@@ -373,7 +373,7 @@ int main(int argc, char** argv)
             if(cpm_pf_params.write_color_png) {
                 vector<Mat1f> disp_2ch;
                 if(ang_dir == "ver")
-                    disp_2ch = {Mat1f::zeros(height, width), cpm_disp};
+                    disp_2ch = {Mat1f::zeros(width, height), cpm_disp}; // Height and width are swaped
                 else if(ang_dir == "hor")
                     disp_2ch = {cpm_disp, Mat1f::zeros(height, width)};
                 Mat2f disp_2_flow;
@@ -465,7 +465,7 @@ int main(int argc, char** argv)
             pf_spatial_disp_vec[i].copyTo(pf_disp);
             
             if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(pf_disp, pf_disp, cv::ROTATE_90_COUNTERCLOCKWISE);
+                cv::rotate(pf_disp, pf_disp, cv::ROTATE_90_CLOCKWISE);
 
             string disp_file = cpm_pf_params.output_PF_dir +  "/PF_spatial__" + img_name1 + "__TO__" + img_name2 + ".pfm";
             WriteFilePFM(-pf_disp, disp_file.c_str(), 1/255.0);
@@ -474,7 +474,7 @@ int main(int argc, char** argv)
             if(cpm_pf_params.write_color_png) {
                 vector<Mat1f> disp_2ch;
                 if(ang_dir == "ver")
-                    disp_2ch = {Mat1f::zeros(height, width), pf_disp};
+                    disp_2ch = {Mat1f::zeros(width, height), pf_disp}; // Height and width are swaped
                 else if(ang_dir == "hor")
                     disp_2ch = {pf_disp, Mat1f::zeros(height, width)};
                 Mat2f disp_2_flow;
@@ -536,7 +536,7 @@ int main(int argc, char** argv)
             pf_temporal_disp_vec[i].copyTo(pf_disp);
 
             if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(pf_disp, pf_disp, cv::ROTATE_90_COUNTERCLOCKWISE);
+                cv::rotate(pf_disp, pf_disp, cv::ROTATE_90_CLOCKWISE);
 
             string disp_file = cpm_pf_params.output_PF_dir +  "/PF_temporal__" + img_name1 + "__TO__" + img_name2 + ".pfm";
             WriteFilePFM(-pf_disp, disp_file.c_str(), 1/255.0);
@@ -545,7 +545,7 @@ int main(int argc, char** argv)
             if(cpm_pf_params.write_color_png) {
                 vector<Mat1f> disp_2ch;
                 if(ang_dir == "ver")
-                    disp_2ch = {Mat1f::zeros(height, width), pf_disp};
+                    disp_2ch = {Mat1f::zeros(width, height), pf_disp}; // Height and width are swaped
                 else if(ang_dir == "hor")
                     disp_2ch = {pf_disp, Mat1f::zeros(height, width)};
                 Mat2f disp_2_flow;
@@ -628,7 +628,7 @@ int main(int argc, char** argv)
         vr_disp_vec[i].copyTo(vr_disp);
 
         if(ang_dir == "ver") // Rotate back to original orientation
-                cv::rotate(vr_disp, vr_disp, cv::ROTATE_90_COUNTERCLOCKWISE);
+                cv::rotate(vr_disp, vr_disp, cv::ROTATE_90_CLOCKWISE);
 
         string disp_file = cpm_pf_params.output_VR_dir +  "/VR__" + img_name1 + "__TO__" + img_name2 + ".pfm";
         WriteFilePFM(-vr_disp, disp_file.c_str(), 1/255.0);
@@ -637,7 +637,7 @@ int main(int argc, char** argv)
         if(cpm_pf_params.write_color_png) {
             vector<Mat1f> disp_2ch;
             if(ang_dir == "ver")
-                disp_2ch = {Mat1f::zeros(height, width), vr_disp};
+                disp_2ch = {Mat1f::zeros(width, height), vr_disp}; // Height and width are swaped
             else if(ang_dir == "hor")
                 disp_2ch = {vr_disp, Mat1f::zeros(height, width)};
             Mat2f disp_2_flow;

@@ -35,8 +35,8 @@ void Usage()
         << "    -img_suf                                   suffix to add before image format extension" << endl
         << "  Output result folders:" << endl
         << "    -o, -output_VR                             set the final output folder (after variational refinement), default is <input_image_folder>" << endl
-        << "    -save_intermediate                         use this flag to save results from CPM and PF steps, use the following flages to set the output folders" << endl
         << "    -write_color_png                           write results as color png files using optical flow convention" << endl
+        << "    -save_intermediate                         use this flag to save results from CPM and PF steps, use the following flags to set the output folders" << endl
         << "    -output_CPM                                set the output folder for the Coarse-to-fine Patchmatch step, default is <input_image_folder>" << endl
         << "    -output_PF                                 set the output folder for the Permeability Filter steps (both spatial and temporal, default is <input_image_folder>" << endl
         << "  CPM parameters:" << endl

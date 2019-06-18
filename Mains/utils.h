@@ -20,6 +20,8 @@ extern "C" {
 #include "Variational_refinement/variational.h"
 }
 
+static inline int img_boundary_check(const float x, const int& MaxValue) {return __min(__max(x,0),MaxValue-1);};
+
 /* ---------------- CONVERSION BETWEEN IMAGE TYPES --------------------------- */
 void Match2Flow(FImage& inMat, FImage& ou, FImage& ov, int w, int h);
 
