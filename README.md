@@ -33,7 +33,7 @@ The compilation of this code will produce two executables, CMPPF_FLOW and CPMPF_
 Below is an excerpt of the manual displayed when using the `-h` or `-help` flag. See the testing section for mode detailed usage examples.
 
 ```
-  ./CPMPF <input_image_folder> <img_pre> <img_ext> <start_idx> <nb_imgs> <ang_dir> [options]
+  ./CPMPF_* <input_image_folder> <img_pre> <img_ext> <start_idx> <nb_imgs> <ang_dir> [options]
 Mandatory parameters:
     <input_image_folder>                       path to input images
     <img_pre>                                  image name prefix. If there is no image prefix use none or ''
@@ -63,7 +63,9 @@ Options:
 
 To test the executables, we provide test data and scripts in folder ./testing.
 The testing/Sintel folder can be used to test the CPMPF_FLOW, while the other folders can be used to test CPMPF_DISP.
+
 Simply unzip the test images in the folder where they are located, and run the .sh scripts. Note that the different command lines in the .sh scripts also showcase usecases corresponding to different image naming conventions.
+
 If you use these test data in your own work, you need to cite the appropriate papers provided in the dataset_reference.txt files.
 
 ## References

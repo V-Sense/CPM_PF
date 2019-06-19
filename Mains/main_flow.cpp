@@ -26,7 +26,7 @@ void Usage()
 {
     std::cout<< endl
         << "Usage:" << endl
-        << "  ./CPMPF <input_image_folder> <img_pre> <img_ext> <start_idx> <nb_imgs> [options]" << endl
+        << "  ./CPMPF_FLOW <input_image_folder> <img_pre> <img_ext> <start_idx> <nb_imgs> [options]" << endl
         << "Mandatory parameters:" << endl
         << "    <input_image_folder>                       path to input images" << endl
         << "    <img_pre>                                  image name prefix. If there is no image prefix use none or ''" << endl
